@@ -76,9 +76,17 @@ const GenAIDataCenterCalculator = () => {
               selectedModelPreset={calculator.selectedModelPreset}
               selectedGpuPreset={calculator.selectedGpuPreset}
               selectedServerPreset={calculator.selectedServerPreset}
+              selectedNetworkPreset={calculator.selectedNetworkPreset}
+              selectedStoragePreset={calculator.selectedStoragePreset}
+              selectedRamPreset={calculator.selectedRamPreset}
+              selectedSoftwarePreset={calculator.selectedSoftwarePreset}
               applyModelPreset={calculator.applyModelPreset}
               applyGpuPreset={calculator.applyGpuPreset}
               applyServerPreset={calculator.applyServerPreset}
+              applyNetworkPreset={calculator.applyNetworkPreset}
+              applyStoragePreset={calculator.applyStoragePreset}
+              applyRamPreset={calculator.applyRamPreset}
+              applySoftwarePreset={calculator.applySoftwarePreset}
               setBatchingOptimizationFactor={calculator.setBatchingOptimizationFactor}
               activeTab={calculator.activeTab}
               setActiveTab={calculator.setActiveTab}
