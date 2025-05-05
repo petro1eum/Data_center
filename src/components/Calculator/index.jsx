@@ -106,7 +106,7 @@ const GenAIDataCenterCalculator = () => {
         </Row>
       </Content>
       <Footer style={{ textAlign: 'center', background: '#f0f2f5', color: '#888' }}>
-        GenAI Data Center Calculator ©{new Date().getFullYear()} 
+        GenAI Data Center Calculator ©{new Date().getFullYear()} by Ed Cherednik
       </Footer>
     </Layout>
   );
