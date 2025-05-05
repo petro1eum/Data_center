@@ -1,11 +1,12 @@
 import React from 'react';
 import { Layout, Row, Col, Typography, Space, Tabs } from 'antd';
-import { CalculatorOutlined, BarChartOutlined, FileTextOutlined, LineChartOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, BarChartOutlined, FileTextOutlined, LineChartOutlined, ReadOutlined } from '@ant-design/icons';
 import { useCalculator } from '../../hooks/useCalculator';
 import SettingsPanel from './SettingsPanel';
 import ResultsPanel from './ResultsPanel';
 import TechnicalReport from './TechnicalReport';
 import AnalyticsPanel from './AnalyticsPanel';
+import LlmHandbook from './LlmHandbook';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph } = Typography;
@@ -44,6 +45,11 @@ const GenAIDataCenterCalculator = () => {
                     results={calculator.results}
                     modelSizeError={calculator.modelSizeError}
                   />,
+    },
+    {
+      label: <><ReadOutlined /> Справочник LLM</>,
+      key: 'handbook',
+      children: <LlmHandbook />,
     },
   ];
   
