@@ -47,7 +47,15 @@ export const useCalculator = () => {
         
         // Коэффициент оптимизации батчинга
         batchingOptimizationFactor: 1.0,
-      });
+
+    // --- Новые параметры для мультиагентных систем ---
+    isAgentModeEnabled: false, // Флаг включения режима
+    avgAgentsPerTask: 3,       // Среднее кол-во агентов на задачу
+    avgLlmCallsPerAgent: 5,    // Среднее кол-во вызовов LLM на агента
+    avgToolCallsPerAgent: 2,   // Среднее кол-во вызовов инструментов на агента
+    avgAgentLlmTokens: 1500,   // Среднее кол-во токенов на внутренний вызов LLM агента
+    avgExternalToolCost: 0.002 // Средняя стоимость вызова внешнего инструмента (USD)
+  });
     
       // Состояние результатов
       const [results, setResults] = useState({
@@ -68,6 +76,11 @@ export const useCalculator = () => {
         networkCost: 0,
         ramRequirementPerServerGB: 0,
         totalRamCost: 0,
+
+        // --- Новые результаты для мультиагентных систем ---
+        annualExternalToolCost: 0, // Годовая стоимость вызовов инструментов
+        totalLlmCallsPerSecond: 0, // Общее кол-во вызовов LLM в секунду (агенты + ответ)
+        totalToolCallsPerSecond: 0 // Общее кол-во вызовов инструментов в секунду
       });
     
       // Состояние выбранных пресетов
@@ -125,11 +138,33 @@ export const useCalculator = () => {
         }
       };
     
-      // Обработка изменений формы
-      const handleFormChange = (e) => {
-        const { name, value } = e.target;
-        const numValue = name === 'modelParamsBitsPrecision' ? parseInt(value) : parseFloat(value);
+      // Обновленный обработчик изменений формы
+      const handleFormChange = (eOrName, valueOrNil) => {
+        let name, value;
+        // Обработка событий от Input/Select или прямого вызова с name/value
+        if (typeof eOrName === 'string') {
+          name = eOrName;
+          value = valueOrNil;
+        } else {
+          name = eOrName.target.name;
+          value = eOrName.target.type === 'checkbox' ? eOrName.target.checked : eOrName.target.value;
+        }
+
+        // Преобразование в число, если нужно
+        let numValue = value;
+        if (typeof value === 'string' && !isNaN(parseFloat(value)) && name !== 'gpuConfigModel' && name !== 'networkType') {
+            if (name === 'modelParamsBitsPrecision' || name === 'avgAgentsPerTask' || name === 'avgLlmCallsPerAgent' || name === 'avgToolCallsPerAgent' || name === 'avgAgentLlmTokens') {
+                 numValue = parseInt(value) || 0; // Целые числа
+            } else if (name !== 'isAgentModeEnabled') { // Не парсить boolean
+                 numValue = parseFloat(value) || 0; // Числа с плавающей точкой
+            }
+        }
         
+        // Для boolean (isAgentModeEnabled)
+        if (name === 'isAgentModeEnabled') {
+            numValue = Boolean(value);
+        }
+
         setFormData(prev => ({
           ...prev,
           [name]: numValue
@@ -144,49 +179,84 @@ export const useCalculator = () => {
         }));
       };
     
-      // Выполнить расчеты
+      // Обновленная функция расчетов
       const calculateResults = () => {
-        // Учитываем коэффициент оптимизации батчинга
-        const effectiveFormData = {
+        const effectiveTokensPerSecPerGpu = formData.modelParamsTokensPerSecPerGpu * formData.batchingOptimizationFactor;
+
+        let effectiveTokensPerRequest = formData.userLoadTokensPerRequest;
+        let totalAgentLlmCallsPerTask = 0;
+        let totalToolCallsPerTask = 0;
+        let annualExternalToolCost = 0;
+        let totalLlmCallsPerSecond = 0;
+        let totalToolCallsPerSecond = 0;
+
+        // Расчеты для мультиагентного режима
+        if (formData.isAgentModeEnabled) {
+          totalAgentLlmCallsPerTask = formData.avgAgentsPerTask * formData.avgLlmCallsPerAgent;
+          totalToolCallsPerTask = formData.avgAgentsPerTask * formData.avgToolCallsPerAgent;
+          
+          // Увеличиваем "эффективные" токены за счет работы агентов
+          effectiveTokensPerRequest = (totalAgentLlmCallsPerTask * formData.avgAgentLlmTokens) + formData.userLoadTokensPerRequest;
+
+          // Общее количество вызовов LLM и инструментов в секунду по всей системе
+          totalLlmCallsPerSecond = (formData.userLoadConcurrentUsers * (totalAgentLlmCallsPerTask + 1)) / formData.userLoadResponseTimeSec; // +1 за финальный ответ
+          totalToolCallsPerSecond = (formData.userLoadConcurrentUsers * totalToolCallsPerTask) / formData.userLoadResponseTimeSec;
+
+          // Годовая стоимость инструментов
+          annualExternalToolCost = totalToolCallsPerSecond * formData.avgExternalToolCost * 3600 * 24 * 365;
+        } else {
+            // Базовый расчет вызовов LLM для простого чата
+            totalLlmCallsPerSecond = formData.userLoadConcurrentUsers / formData.userLoadResponseTimeSec;
+        }
+
+        // Создаем данные для передачи в утилиты
+        const calcInputData = {
           ...formData,
-          modelParamsTokensPerSecPerGpu: formData.modelParamsTokensPerSecPerGpu * formData.batchingOptimizationFactor
+          modelParamsTokensPerSecPerGpu: effectiveTokensPerSecPerGpu, // Передаем эффективную производительность GPU
+          userLoadTokensPerRequest: effectiveTokensPerRequest // Передаем эффективное кол-во токенов на запрос
         };
+
+        const numGpu = calcRequiredGpu(calcInputData); // Используем calcInputData
+        const capexResult = calcCapex(numGpu, calcInputData); // Используем calcInputData
         
-        const numGpu = calcRequiredGpu(effectiveFormData);
-        const capexResult = calcCapex(numGpu, effectiveFormData);
-        const opexResult = calcOpex(numGpu, capexResult.numServers, effectiveFormData);
+        // Передаем стоимость инструментов в расчет OpEx
+        const opexResult = calcOpex(numGpu, capexResult.numServers, calcInputData, annualExternalToolCost); 
         
-        // Дополнительные расчеты
-        const storageResult = calcStorageRequirements(effectiveFormData, capexResult.numServers);
+        const storageResult = calcStorageRequirements(calcInputData, capexResult.numServers);
         const networkResult = calcNetworkRequirements(capexResult.numServers, numGpu);
-        const ramResult = calcRamRequirements(effectiveFormData, capexResult.numServers);
+        const ramResult = calcRamRequirements(calcInputData, capexResult.numServers);
         
-        // Обновление капитальных затрат с учетом новых компонентов
         const totalCapex = capexResult.totalCost + 
                           networkResult.networkEquipmentCost + 
                           storageResult.storageCostUsd + 
                           ramResult.totalRamCost;
         
+        // TCO теперь включает стоимость инструментов
+        const fiveYearTcoCalc = totalCapex + (opexResult.totalOpex * 5);
+
         setResults({
           requiredGpu: numGpu,
           serversRequired: capexResult.numServers,
           capexUsd: totalCapex,
-          annualOpexUsd: opexResult.totalOpex,
+          annualOpexUsd: opexResult.totalOpex, // Включает стоимость инструментов
           powerConsumptionKw: opexResult.totalPowerKw,
           annualEnergyKwh: opexResult.annualEnergyKwh,
           energyCostAnnual: opexResult.energyCost,
           maintenanceCostAnnual: opexResult.maintenanceCost,
-          fiveYearTco: totalCapex + (opexResult.totalOpex * 5),
-          
-          // Дополнительные результаты
+          fiveYearTco: fiveYearTcoCalc, // Обновленный TCO
           totalGpuCost: capexResult.totalGpuCost,
           totalServerCost: capexResult.totalServerCost,
           storageRequirementsGB: storageResult.totalStorageGB,
           storageCostUsd: storageResult.storageCostUsd,
           networkType: networkResult.networkType,
-          networkCost: networkResult.networkEquipmentCost,
+          networkCost: networkResult.networkCost,
           ramRequirementPerServerGB: ramResult.recommendedRamPerServer,
-          totalRamCost: ramResult.totalRamCost
+          totalRamCost: ramResult.totalRamCost,
+          
+          // Новые результаты
+          annualExternalToolCost: annualExternalToolCost,
+          totalLlmCallsPerSecond: totalLlmCallsPerSecond,
+          totalToolCallsPerSecond: totalToolCallsPerSecond
         });
       };
     

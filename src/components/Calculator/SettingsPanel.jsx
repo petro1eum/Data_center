@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Tabs, Form, Input, Select, Row, Col, Typography, Alert, Tooltip, Space, Statistic } from 'antd';
+import { Card, Tabs, Form, Input, InputNumber, Select, Row, Col, Typography, Alert, Tooltip, Space, Switch, Divider } from 'antd';
 import { 
   InfoCircleOutlined, 
   DatabaseOutlined, // Модель
@@ -10,14 +10,18 @@ import {
   DollarCircleOutlined, // Стоимость
   ThunderboltOutlined, // Энергопотребление
   HddOutlined, // VRAM
-  StarFilled // Импортируем иконку звезды
+  StarFilled, // Импортируем иконку звезды
+  SlidersOutlined, // Иконка для настроек агентов
+  RobotOutlined, // Иконка для агентов
+  RetweetOutlined, // Иконка для LLM вызовов
+  ToolOutlined // Иконка для Tool вызовов
 } from '@ant-design/icons';
 import { MODEL_PRESETS } from '../../data/modelPresets';
 import { GPU_PRESETS } from '../../data/gpuPresets';
 import { SERVER_PRESETS } from '../../data/serverPresets';
 
 const { Option } = Select;
-const { Text, Paragraph } = Typography;
+const { Text, Paragraph, Title } = Typography;
 
 // Функция для преобразования пресетов в формат options для Select
 const createOptions = (presets) => {
@@ -91,6 +95,16 @@ const SettingsPanel = ({
     </Space>
   );
 
+  // Определяем, поддерживает ли выбранная модель tool calls
+  const modelSupportsToolCalls = selectedModelPreset && MODEL_PRESETS[selectedModelPreset]?.supports_tool_calls;
+  const isAgentSwitchDisabled = !selectedModelPreset || !modelSupportsToolCalls;
+  let agentSwitchTooltip = "";
+  if (!selectedModelPreset) {
+    agentSwitchTooltip = "Сначала выберите модель LLM";
+  } else if (!modelSupportsToolCalls) {
+    agentSwitchTooltip = `Выбранная модель (${MODEL_PRESETS[selectedModelPreset]?.name}) не поддерживает или плохо поддерживает вызов инструментов (tool calls). Расчеты в мультиагентном режиме будут неточными.`;
+  }
+
   // Содержимое для вкладок
   const overviewContent = (
     <Space direction="vertical" size="middle" style={{ width: '100%', padding: '16px 0' }}>
@@ -123,11 +137,12 @@ const SettingsPanel = ({
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item label="Параметры (млрд)" >
-                <Input 
-                  type="number"
+                <InputNumber 
+                  style={{ width: '100%'}}
+                  min={0}
                   name="modelParamsNumBillion"
                   value={formData.modelParamsNumBillion}
-                  onChange={handleFormChange}
+                  onChange={(value) => handleFormChange('modelParamsNumBillion', value)}
                   prefix={<SettingOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
                 />
               </Form.Item>
@@ -151,11 +166,12 @@ const SettingsPanel = ({
             label="Производительность (токенов/с на GPU)"
             tooltip={{ title: 'Сколько токенов в секунду генерирует один GPU для этой модели', icon: <InfoCircleOutlined /> }}
           >
-            <Input 
-              type="number"
+            <InputNumber 
+               style={{ width: '100%'}}
+               min={0}
               name="modelParamsTokensPerSecPerGpu"
               value={formData.modelParamsTokensPerSecPerGpu}
-              onChange={handleFormChange}
+              onChange={(value) => handleFormChange('modelParamsTokensPerSecPerGpu', value)}
               prefix={<DashboardOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
             />
           </Form.Item>
@@ -182,28 +198,31 @@ const SettingsPanel = ({
           <Card title={<><UsergroupAddOutlined style={{ marginRight: 8 }} /> Нагрузка</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
             <Form layout="vertical">
               <Form.Item label="Одновременных пользователей">
-                <Input 
-                  type="number"
+                <InputNumber 
+                  style={{ width: '100%'}}
+                  min={1}
                   name="userLoadConcurrentUsers"
                   value={formData.userLoadConcurrentUsers}
-                  onChange={handleFormChange}
+                  onChange={(value) => handleFormChange('userLoadConcurrentUsers', value)}
                 />
               </Form.Item>
               <Form.Item label="Токенов в запросе">
-                <Input 
-                  type="number"
+                <InputNumber 
+                   style={{ width: '100%'}}
+                   min={1}
                   name="userLoadTokensPerRequest"
                   value={formData.userLoadTokensPerRequest}
-                  onChange={handleFormChange}
+                   onChange={(value) => handleFormChange('userLoadTokensPerRequest', value)}
                 />
               </Form.Item>
               <Form.Item label="Желаемое время ответа (сек)">
-                <Input 
-                  type="number"
+                <InputNumber 
+                   style={{ width: '100%'}}
+                   min={0.1}
+                   step={0.1}
                   name="userLoadResponseTimeSec"
                   value={formData.userLoadResponseTimeSec}
-                  onChange={handleFormChange}
-                  step="0.1"
+                   onChange={(value) => handleFormChange('userLoadResponseTimeSec', value)}
                 />
               </Form.Item>
             </Form>
@@ -270,31 +289,33 @@ const SettingsPanel = ({
           <Card title={<><LaptopOutlined style={{ marginRight: 8 }} /> Детали GPU</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
              <Form layout="vertical">
               <Form.Item label="Стоимость GPU (USD)">
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                   style={{ width: '100%'}}
+                   min={0}
+                   formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                   parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
                    name="gpuConfigCostUsd"
                    value={formData.gpuConfigCostUsd}
-                   onChange={handleFormChange}
-                   prefix={<DollarCircleOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                   onChange={(value) => handleFormChange('gpuConfigCostUsd', value)}
                  />
                </Form.Item>
                <Form.Item label="Энергопотребление GPU (кВт)">
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                    style={{ width: '100%'}}
+                    min={0}
+                    step={0.01}
                    name="gpuConfigPowerKw"
                    value={formData.gpuConfigPowerKw}
-                   onChange={handleFormChange}
-                   step="0.1"
-                   prefix={<ThunderboltOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                   onChange={(value) => handleFormChange('gpuConfigPowerKw', value)}
                  />
                </Form.Item>
                <Form.Item label="Объем VRAM (ГБ)">
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                    style={{ width: '100%'}}
+                    min={0}
                    name="gpuConfigVramGb"
                    value={formData.gpuConfigVramGb}
-                   onChange={handleFormChange}
-                    prefix={<HddOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                   onChange={(value) => handleFormChange('gpuConfigVramGb', value)}
                  />
                </Form.Item>
              </Form>
@@ -304,33 +325,36 @@ const SettingsPanel = ({
            <Card title={<><SettingOutlined style={{ marginRight: 8 }} /> Детали сервера</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
             <Form layout="vertical">
                 <Form.Item label="GPU на сервер">
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                   style={{ width: '100%'}}
+                   min={1}
                    name="serverConfigNumGpuPerServer"
                    value={formData.serverConfigNumGpuPerServer}
-                   onChange={handleFormChange}
+                   onChange={(value) => handleFormChange('serverConfigNumGpuPerServer', value)}
                  />
                </Form.Item>
                <Form.Item label="Стоимость сервера без GPU (USD)">
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                    style={{ width: '100%'}}
+                    min={0}
+                    formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                    parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
                    name="serverConfigCostUsd"
                    value={formData.serverConfigCostUsd}
-                   onChange={handleFormChange}
-                   prefix={<DollarCircleOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                    onChange={(value) => handleFormChange('serverConfigCostUsd', value)}
                  />
                </Form.Item>
                <Form.Item 
                  label="Доп. энергопотребление (кВт)"
                  tooltip={{ title: 'Энергопотребление CPU, RAM, SSD и др.', icon: <InfoCircleOutlined /> }}
                >
-                 <Input 
-                   type="number"
+                 <InputNumber 
+                    style={{ width: '100%'}}
+                    min={0}
+                    step={0.1}
                    name="serverConfigPowerOverheadKw"
                    value={formData.serverConfigPowerOverheadKw}
-                   onChange={handleFormChange}
-                   step="0.1"
-                   prefix={<ThunderboltOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                    onChange={(value) => handleFormChange('serverConfigPowerOverheadKw', value)}
                  />
                </Form.Item>
              </Form>
@@ -342,12 +366,13 @@ const SettingsPanel = ({
              <Row gutter={16}>
               <Col xs={24} sm={8}>
                 <Form.Item label="Электроэнергия (USD/кВт*ч)">
-                  <Input 
-                    type="number"
+                  <InputNumber 
+                     style={{ width: '100%'}}
+                     min={0}
+                     step={0.01}
                     name="dcCostsElectricityCostUsdPerKwh"
                     value={formData.dcCostsElectricityCostUsdPerKwh}
-                    onChange={handleFormChange}
-                    step="0.01"
+                     onChange={(value) => handleFormChange('dcCostsElectricityCostUsdPerKwh', value)}
                   />
                 </Form.Item>
               </Col>
@@ -356,12 +381,13 @@ const SettingsPanel = ({
                   label="PUE"
                   tooltip={{ title: 'Коэффициент эффективности ЦОД (обычно 1.2-1.5)', icon: <InfoCircleOutlined /> }}
                 >
-                  <Input 
-                    type="number"
+                  <InputNumber 
+                     style={{ width: '100%'}}
+                     min={1.0}
+                     step={0.05}
                     name="dcCostsPue"
                     value={formData.dcCostsPue}
-                    onChange={handleFormChange}
-                    step="0.1"
+                     onChange={(value) => handleFormChange('dcCostsPue', value)}
                   />
                 </Form.Item>
               </Col>
@@ -370,12 +396,16 @@ const SettingsPanel = ({
                   label="Обслуживание (%)"
                   tooltip={{ title: 'Ежегодно от общей стоимости оборудования', icon: <InfoCircleOutlined /> }}
                 >
-                  <Input 
-                    type="number"
+                  <InputNumber 
+                     style={{ width: '100%'}}
+                     min={0}
+                     max={100}
+                     step={0.5}
+                     formatter={(value) => `${value}%`}
+                     parser={(value) => value?.replace('%', '') ?? ''}
                     name="dcCostsAnnualMaintenanceRate"
-                    value={formData.dcCostsAnnualMaintenanceRate}
-                    onChange={handleFormChange}
-                    step="0.01"
+                    value={formData.dcCostsAnnualMaintenanceRate * 100} // Конвертируем в % для отображения
+                     onChange={(value) => handleFormChange('dcCostsAnnualMaintenanceRate', (value || 0) / 100)} // Конвертируем обратно
                   />
                 </Form.Item>
               </Col>
@@ -385,12 +415,128 @@ const SettingsPanel = ({
     </Space>
   );
 
+  const agentContent = (
+    <Space direction="vertical" size="middle" style={{ width: '100%', padding: '16px 0' }}>
+       <Card title={<><SlidersOutlined style={{ marginRight: 8 }} /> Настройки Мультиагентного Режима</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
+            <Form layout="vertical">
+                <Tooltip title={agentSwitchTooltip} placement="right"> 
+                    {/* Оборачиваем Form.Item и Switch в div, чтобы Tooltip работал на disabled элементе */}
+                    <div style={{ display: 'inline-block', cursor: isAgentSwitchDisabled ? 'not-allowed' : 'pointer' }}>
+                        <Form.Item 
+                            label="Включить расчет для мультиагентных систем" 
+                            valuePropName="checked" 
+                            style={{ marginBottom: formData.isAgentModeEnabled ? 16 : 0 }} // Убираем отступ если Switch выключен
+                        >
+                            <Switch 
+                                checked={formData.isAgentModeEnabled} 
+                                onChange={(checked) => handleFormChange('isAgentModeEnabled', checked)}
+                                disabled={isAgentSwitchDisabled} // Блокируем, если модель не выбрана или не поддерживает
+                            />
+                        </Form.Item>
+                    </div>
+                 </Tooltip>
+                 {formData.isAgentModeEnabled && (
+                     <> 
+                         <Divider orientation="left" plain><Text type="secondary">Параметры Агентов</Text></Divider>
+                         <Row gutter={16}>
+                             <Col xs={24} sm={12}>
+                                 <Form.Item 
+                                     label="Среднее кол-во агентов на задачу"
+                                     tooltip="Сколько агентов в среднем участвуют в решении одной задачи пользователя (например, 3 для CEO-Writer-Editor)">
+                                    <InputNumber 
+                                        style={{ width: '100%'}}
+                                        min={1}
+                                        name="avgAgentsPerTask"
+                                        value={formData.avgAgentsPerTask}
+                                        onChange={(value) => handleFormChange('avgAgentsPerTask', value)}
+                                        prefix={<RobotOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                                    />
+                                </Form.Item>
+                            </Col>
+                            <Col xs={24} sm={12}>
+                                 <Form.Item 
+                                     label="Среднее кол-во вызовов LLM / агент"
+                                     tooltip="Сколько раз каждый агент в среднем обращается к LLM за задачу (планирование, рефлексия, вызов tool, ответ)">
+                                     <InputNumber 
+                                         style={{ width: '100%'}}
+                                         min={0}
+                                         name="avgLlmCallsPerAgent"
+                                         value={formData.avgLlmCallsPerAgent}
+                                         onChange={(value) => handleFormChange('avgLlmCallsPerAgent', value)}
+                                         prefix={<RetweetOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                                     />
+                                </Form.Item>
+                            </Col>
+                         </Row>
+                         <Row gutter={16}>
+                              <Col xs={24} sm={12}>
+                                 <Form.Item 
+                                     label="Среднее кол-во вызовов Tool / агент"
+                                     tooltip="Сколько раз каждый агент в среднем вызывает внешний инструмент (API, поиск и т.д.) за задачу">
+                                     <InputNumber 
+                                         style={{ width: '100%'}}
+                                         min={0}
+                                         name="avgToolCallsPerAgent"
+                                         value={formData.avgToolCallsPerAgent}
+                                         onChange={(value) => handleFormChange('avgToolCallsPerAgent', value)}
+                                         prefix={<ToolOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                                     />
+                                </Form.Item>
+                             </Col>
+                             <Col xs={24} sm={12}>
+                                 <Form.Item 
+                                     label="Средняя стоимость вызова Tool (USD)"
+                                     tooltip="Примерная стоимость одного вызова внешнего платного инструмента (API и т.п.)">
+                                     <InputNumber 
+                                         style={{ width: '100%'}}
+                                         min={0}
+                                         step={0.001}
+                                         precision={3}
+                                         formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                                         parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
+                                         name="avgExternalToolCost"
+                                         value={formData.avgExternalToolCost}
+                                         onChange={(value) => handleFormChange('avgExternalToolCost', value)}
+                                     />
+                                </Form.Item>
+                            </Col>
+                        </Row>
+                        <Form.Item 
+                             label="Среднее кол-во токенов / вызов LLM агентом"
+                             tooltip="Примерное кол-во токенов (вход+выход) на один внутренний вызов LLM агентом (не финальный ответ пользователю)">
+                             <InputNumber 
+                                 style={{ width: '100%'}}
+                                 min={0}
+                                 step={100}
+                                 name="avgAgentLlmTokens"
+                                 value={formData.avgAgentLlmTokens}
+                                 onChange={(value) => handleFormChange('avgAgentLlmTokens', value)}
+                                 prefix={<SettingOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
+                             />
+                        </Form.Item>
+                     </>
+                )}
+            </Form>
+            <Paragraph type="secondary" style={{ marginTop: 10, fontSize: 12 }}>
+           Включение этого режима пересчитает нагрузку на LLM и добавит стоимость вызова внешних инструментов в OpEx, что повлияет на общее количество GPU и TCO.
+            {!isAgentSwitchDisabled && !modelSupportsToolCalls && 
+                 <Text type="warning" strong> Внимание: Выбранная модель не оптимизирована для вызова инструментов.</Text>}
+         </Paragraph>
+        </Card>
+    </Space>
+  );
+
   // Формируем items для Tabs
   const tabItems = [
     {
       label: "Ключевые параметры",
       key: "overview",
       children: overviewContent,
+    },
+    {
+      label: "Мультиагентные системы",
+      key: "agents",
+      children: agentContent,
     },
     {
       label: "Расширенные настройки",

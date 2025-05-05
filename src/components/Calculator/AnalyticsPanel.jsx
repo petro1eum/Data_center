@@ -13,7 +13,9 @@ import {
   RiseOutlined,
   FallOutlined,
   PieChartOutlined,
-  DatabaseOutlined
+  DatabaseOutlined,
+  ToolOutlined,
+  RetweetOutlined
 } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;
@@ -50,13 +52,17 @@ const AnalyticsPanel = ({ results, formData }) => {
     const { 
         requiredGpu, capexUsd, annualOpexUsd, fiveYearTco, serversRequired, 
         powerConsumptionKw, totalGpuCost, totalServerCost, energyCostAnnual, 
-        maintenanceCostAnnual, ramRequirementPerServerGB, networkCost, storageCostUsd, totalRamCost
+        maintenanceCostAnnual, ramRequirementPerServerGB, networkCost, storageCostUsd, totalRamCost,
+        annualExternalToolCost,
+        totalLlmCallsPerSecond,
+        totalToolCallsPerSecond
     } = results;
     const { 
         userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, 
         gpuConfigModel, gpuConfigVramGb, serverConfigNumGpuPerServer, modelParamsNumBillion,
         modelParamsBitsPrecision, batchingOptimizationFactor,
-        modelParamsTokensPerSecPerGpu
+        modelParamsTokensPerSecPerGpu,
+        isAgentModeEnabled
     } = formData;
 
     // Экономика
@@ -93,12 +99,15 @@ const AnalyticsPanel = ({ results, formData }) => {
     const storageCostPercentOfCapex = safeDivide(storageCostUsd * 100, capexUsd);
     const ramCostPercentOfCapex = safeDivide(totalRamCost * 100, capexUsd);
     
+    const externalToolCostPercentOfOpex = safeDivide((annualExternalToolCost ?? 0) * 100, annualOpexUsd);
+    
     // --- Рендеринг --- 
     return (
         <Card variant="borderless" style={{ background: '#f9f9f9' }} styles={{ body: { padding: '16px 20px' } }}>
             <Title level={4} style={{ marginBottom: 8 }}>Аналитика и KPI</Title>
             <Paragraph type="secondary" style={{ marginBottom: 20 }}>
                 Ключевые показатели эффективности (KPI), экономические метрики и анализ структуры затрат для выбранной конфигурации.
+                {isAgentModeEnabled && <Tag color="blue" style={{ marginLeft: 8 }}>Мультиагентный режим</Tag>}
             </Paragraph>
 
             {/* --- Блок Ключевых Экономических KPI --- */} 
@@ -108,7 +117,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                     <KpiCard 
                         title="Стоимость / 1M токенов"
                         tooltip="Оценочная стоимость обработки 1 миллиона токенов (на базе TCO за 5 лет)"
-                        value={costPerMillionTokens}
+                        value={costPerMillionTokens ?? 0}
                         prefix="$"
                         suffix="/1M tok"
                         precision={0}
@@ -120,7 +129,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                     <KpiCard 
                         title="TCO / Пользователь (5 лет)"
                         tooltip="Общая стоимость владения за 5 лет в расчете на одного одновременного пользователя"
-                        value={tcoPerUser5yr}
+                        value={tcoPerUser5yr ?? 0}
                         prefix="$"
                         precision={0}
                         color="#cf1322"
@@ -131,7 +140,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                     <KpiCard 
                         title="CapEx / Пользователь"
                         tooltip="Первоначальные инвестиции в расчете на одного одновременного пользователя"
-                        value={capexPerUser}
+                        value={capexPerUser ?? 0}
                         prefix="$"
                         precision={0}
                         color="#096dd9"
@@ -141,8 +150,8 @@ const AnalyticsPanel = ({ results, formData }) => {
                 <Col xs={24} sm={12} md={6}>
                     <KpiCard 
                         title="OpEx / Пользователь (Год)"
-                        tooltip="Ежегодные операционные расходы в расчете на одного одновременного пользователя"
-                        value={opexPerUserAnnual}
+                        tooltip={`Ежегодные операционные расходы в расчете на одного одновременного пользователя ${isAgentModeEnabled ? '(вкл. стоимость Tools)' : ''}`}
+                        value={opexPerUserAnnual ?? 0}
                         prefix="$"
                         precision={0}
                         color="#d46b08"
@@ -155,44 +164,66 @@ const AnalyticsPanel = ({ results, formData }) => {
             {/* --- Блок Производительности и Эффективности --- */} 
             <Title level={5}><BarChartOutlined style={{ marginRight: 8, color: '#52c41a' }}/>Производительность и Эффективность</Title>
              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-                <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={12} lg={4}>
                     <KpiCard 
                         title="Токены / Сек / Польз."
                         tooltip="Средняя скорость генерации токенов для одного пользователя"
-                        value={tokensPerSecondPerUser}
+                        value={tokensPerSecondPerUser ?? 0}
                         precision={1}
                         suffix="ток/с"
                         color="#237804"
                         icon={<FieldTimeOutlined />}
                     />
                 </Col>
-                 <Col xs={24} sm={12} md={6}>
+                 <Col xs={24} sm={12} lg={4}>
                     <KpiCard 
                         title="Пользователи / GPU"
                         tooltip="Количество одновременных пользователей, обслуживаемых одним GPU"
-                        value={usersPerGpu}
+                        value={usersPerGpu ?? 0}
                         precision={1}
                         suffix="польз."
                         color="#391085"
                         icon={<InteractionOutlined />}
                     />
                 </Col>
-                 <Col xs={24} sm={12} md={6}>
+                <Col xs={24} sm={12} lg={4}>
+                    <KpiCard 
+                        title="LLM Вызовы / Сек"
+                        tooltip="Общее количество вызовов LLM в секунду (включая агентные)"
+                        value={totalLlmCallsPerSecond ?? 0}
+                        precision={1}
+                        suffix="выз/с"
+                        color="#08979c"
+                        icon={<RetweetOutlined />}
+                    />
+                 </Col>
+                 <Col xs={24} sm={12} lg={4}>
+                    <KpiCard 
+                        title="Tool Вызовы / Сек"
+                        tooltip="Общее количество вызовов внешних инструментов в секунду (только в агентном режиме)"
+                        value={totalToolCallsPerSecond ?? 0}
+                        precision={1}
+                        suffix="выз/с"
+                        color="#c41d7f"
+                        icon={<ToolOutlined />}
+                    />
+                </Col>
+                 <Col xs={24} sm={12} lg={4}>
                     <KpiCard 
                         title="Мощность / GPU"
                         tooltip="Среднее энергопотребление на один GPU (включая долю серверной обвязки)"
-                        value={kwPerGpu}
+                        value={kwPerGpu ?? 0}
                         precision={2}
                         suffix="кВт"
                         color="#ad6800"
                         icon={<ThunderboltOutlined />}
                     />
                  </Col>
-                 <Col xs={24} sm={12} md={6}>
+                 <Col xs={24} sm={12} lg={4}>
                     <KpiCard 
                         title="RAM / GPU"
                         tooltip="Соотношение общего объема RAM к общему количеству GPU в системе"
-                        value={ramPerGpuRatio}
+                        value={ramPerGpuRatio ?? 0}
                         precision={1}
                         suffix="ГБ RAM / GPU"
                         color="#0050b3"
@@ -210,7 +241,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                            <Col xs={12} sm={10} style={{ textAlign: 'center' }}>
                                 <Progress 
                                     type="circle" 
-                                    percent={capexPercent} 
+                                    percent={capexPercent ?? 0} 
                                     format={(percent) => <><Text strong>{percent?.toFixed(0)}%</Text><br/><Text type="secondary">CapEx</Text></>}
                                     strokeColor="#1890ff"
                                     trailColor="#fff0f6"
@@ -220,7 +251,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                            <Col xs={12} sm={10} style={{ textAlign: 'center' }}>
                                 <Progress 
                                     type="circle" 
-                                    percent={opexPercent} 
+                                    percent={opexPercent ?? 0} 
                                     format={(percent) => <><Text strong>{percent?.toFixed(0)}%</Text><br/><Text type="secondary">OpEx</Text></>}
                                     strokeColor="#fa8c16"
                                     trailColor="#fffbe6"
@@ -231,17 +262,20 @@ const AnalyticsPanel = ({ results, formData }) => {
                                <Descriptions size="small" column={1} bordered layout="vertical">
                                     <Descriptions.Item label="CapEx Breakdown">
                                         <Space direction="vertical" size={2}>
-                                            <Text>• GPU: {gpuCostPercentOfCapex.toFixed(1)}% (${totalGpuCost?.toLocaleString()})</Text>
-                                            <Text>• Серверы: {serverCostPercentOfCapex.toFixed(1)}% (${totalServerCost?.toLocaleString()})</Text>
-                                            <Text>• Сеть: {networkCostPercentOfCapex.toFixed(1)}% (${networkCost.toLocaleString()})</Text>
-                                            <Text>• RAM: {ramCostPercentOfCapex.toFixed(1)}% (${totalRamCost.toLocaleString()})</Text>
-                                            <Text>• Хранилище: {storageCostPercentOfCapex.toFixed(1)}% (${storageCostUsd.toLocaleString()})</Text>
+                                            <Text>• GPU: {(gpuCostPercentOfCapex ?? 0).toFixed(1)}% (${totalGpuCost?.toLocaleString() ?? '-'})</Text>
+                                            <Text>• Серверы: {(serverCostPercentOfCapex ?? 0).toFixed(1)}% (${totalServerCost?.toLocaleString() ?? '-'})</Text>
+                                            <Text>• Сеть: {(networkCostPercentOfCapex ?? 0).toFixed(1)}% (${(networkCost ?? 0).toLocaleString()})</Text>
+                                            <Text>• RAM: {(ramCostPercentOfCapex ?? 0).toFixed(1)}% (${(totalRamCost ?? 0).toLocaleString()})</Text>
+                                            <Text>• Хранилище: {(storageCostPercentOfCapex ?? 0).toFixed(1)}% (${(storageCostUsd ?? 0).toLocaleString()})</Text>
                                         </Space>
                                     </Descriptions.Item>
                                     <Descriptions.Item label="OpEx Breakdown (Annual)">
                                          <Space direction="vertical" size={2}>
-                                            <Text>• Энергия: {energyCostPercentOfOpex.toFixed(1)}% (${energyCostAnnual.toLocaleString()})</Text>
-                                            <Text>• Обслуживание: {maintenanceCostPercentOfOpex.toFixed(1)}% (${maintenanceCostAnnual.toLocaleString()})</Text>
+                                            <Text>• Энергия: {(energyCostPercentOfOpex ?? 0).toFixed(1)}% (${(energyCostAnnual ?? 0).toLocaleString()})</Text>
+                                            <Text>• Обслуживание: {(maintenanceCostPercentOfOpex ?? 0).toFixed(1)}% (${(maintenanceCostAnnual ?? 0).toLocaleString()})</Text>
+                                            {isAgentModeEnabled && (annualExternalToolCost ?? 0) > 0 && (
+                                                <Text>• Внешние Tools: {(externalToolCostPercentOfOpex ?? 0).toFixed(1)}% (${(annualExternalToolCost ?? 0).toLocaleString()})</Text>
+                                            )}
                                         </Space>
                                     </Descriptions.Item>
                                 </Descriptions>
@@ -254,12 +288,12 @@ const AnalyticsPanel = ({ results, formData }) => {
                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
                             <div>
                                 <Text strong>Утилизация GPU слотов: </Text>
-                                <Tag color={gpuUtilizationPercent < 70 ? "warning" : "success"}>{(requiredGpu / serverConfigNumGpuPerServer).toFixed(1)} / {serversRequired} серверов</Tag>
+                                <Tag color={(gpuUtilizationPercent ?? 0) < 70 ? "warning" : "success"}>{safeDivide(requiredGpu, serverConfigNumGpuPerServer).toFixed(1)} / {(serversRequired ?? 0)} серверов</Tag>
                                 <Progress 
-                                    percent={gpuUtilizationPercent}
-                                    strokeColor={gpuUtilizationPercent < 70 ? "#faad14" : "#52c41a"}
-                                    format={(p) => `${p?.toFixed(1)}% (${requiredGpu} / ${gpuSlotsAvailable} слотов)`}
-                                    status={gpuUtilizationPercent === 100 ? "success" : "active"}
+                                    percent={gpuUtilizationPercent ?? 0}
+                                    strokeColor={(gpuUtilizationPercent ?? 0) < 70 ? "#faad14" : "#52c41a"}
+                                    format={(p) => `${p?.toFixed(1)}% (${requiredGpu ?? 0} / ${gpuSlotsAvailable ?? 0} слотов)`}
+                                    status={(gpuUtilizationPercent ?? 0) === 100 ? "success" : "active"}
                                 />
                                 <Paragraph type="secondary" style={{ fontSize: 12 }}>
                                     Показывает, насколько эффективно используются доступные слоты GPU в рассчитанных серверах.
@@ -270,12 +304,18 @@ const AnalyticsPanel = ({ results, formData }) => {
                              <div>
                                 <Text strong>Параметры нагрузки и конфигурации:</Text>
                                 <Descriptions bordered size="small" column={1} style={{ marginTop: 8}} >
-                                    <Descriptions.Item label={<><UserOutlined /> Пользователи</>}>{userLoadConcurrentUsers.toLocaleString()}</Descriptions.Item>
-                                    <Descriptions.Item label={<><DatabaseOutlined /> Модель</>}>{`${modelParamsNumBillion}B (${modelParamsBitsPrecision}-бит)`}</Descriptions.Item>
-                                    <Descriptions.Item label={<><InteractionOutlined /> Коэфф. батчинга</>}>{batchingOptimizationFactor}x</Descriptions.Item>
-                                    <Descriptions.Item label={<><DeploymentUnitOutlined /> GPU на сервер</>}>{serverConfigNumGpuPerServer}</Descriptions.Item>
-                                    <Descriptions.Item label={<><InfoCircleOutlined/> Токены/запрос</>}>{userLoadTokensPerRequest}</Descriptions.Item>
-                                    <Descriptions.Item label={<><FieldTimeOutlined/> Время ответа</>}>{userLoadResponseTimeSec} сек</Descriptions.Item>
+                                    <Descriptions.Item label={<><UserOutlined /> Пользователи</>}>{(formData.userLoadConcurrentUsers ?? 0).toLocaleString()}</Descriptions.Item>
+                                    <Descriptions.Item label={<><DatabaseOutlined /> Модель</>}>{`${formData.modelParamsNumBillion ?? '?'}B (${formData.modelParamsBitsPrecision ?? '?'}-бит)`}</Descriptions.Item>
+                                    <Descriptions.Item label={<><InteractionOutlined /> Коэфф. батчинга</>}>{formData.batchingOptimizationFactor ?? 1}x</Descriptions.Item>
+                                    {isAgentModeEnabled && (
+                                        <> 
+                                            <Descriptions.Item label={<><RobotOutlined /> Агентов/задачу</>}>{formData.avgAgentsPerTask ?? 0}</Descriptions.Item>
+                                            <Descriptions.Item label={<><RetweetOutlined /> LLM вызовов/агент</>}>{formData.avgLlmCallsPerAgent ?? 0}</Descriptions.Item>
+                                            <Descriptions.Item label={<><ToolOutlined /> Tool вызовов/агент</>}>{formData.avgToolCallsPerAgent ?? 0}</Descriptions.Item>
+                                        </>)}
+                                    <Descriptions.Item label={<><DeploymentUnitOutlined /> GPU на сервер</>}>{formData.serverConfigNumGpuPerServer ?? 0}</Descriptions.Item>
+                                    <Descriptions.Item label={<><InfoCircleOutlined/> Токены/запрос</>}>{formData.userLoadTokensPerRequest ?? 0}</Descriptions.Item>
+                                    <Descriptions.Item label={<><FieldTimeOutlined/> Время ответа</>}>{formData.userLoadResponseTimeSec ?? 0} сек</Descriptions.Item>
                                 </Descriptions>
                              </div>
                        </Space>

@@ -56,15 +56,16 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         <Col xs={24} sm={8}>
           <StatCard 
             title="Инфраструктура"
-            value={results.requiredGpu}
+            value={results.requiredGpu ?? 0}
             prefix={<BarChartOutlined />}
             suffix="GPU"
             color="#1890ff"
             tooltip="Общее количество GPU, необходимое для заданной нагрузки"
+            precision={0}
           >
             <Descriptions size="small" column={1} colon={false} styles={{ label: { color: '#595959' }, content: { fontWeight: 500, color: '#262626' } }}>
-              <Descriptions.Item label="Серверов" span={1}>{results.serversRequired}</Descriptions.Item>
-              <Descriptions.Item label="Мощность" span={1}>{`${results.powerConsumptionKw.toFixed(1)} кВт`}</Descriptions.Item>
+              <Descriptions.Item label="Серверов" span={1}>{results.serversRequired ?? 0}</Descriptions.Item>
+              <Descriptions.Item label="Мощность" span={1}>{`${(results.powerConsumptionKw ?? 0).toFixed(1)} кВт`}</Descriptions.Item>
             </Descriptions>
           </StatCard>
         </Col>
@@ -72,7 +73,7 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         <Col xs={24} sm={8}>
            <StatCard 
             title="Стоимость (CapEx)"
-            value={results.capexUsd}
+            value={results.capexUsd ?? 0}
             prefix={<DollarCircleOutlined />}
             precision={0}
             formatter={(value) => `$${value.toLocaleString()}`}
@@ -80,8 +81,8 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
             tooltip="Общие первоначальные инвестиции в оборудование"
           >
              <Descriptions size="small" column={1} colon={false} styles={{ label: { color: '#595959' }, content: { fontWeight: 500, color: '#262626' } }}>
-              <Descriptions.Item label="OpEx/год" span={1}>{`$${results.annualOpexUsd.toLocaleString()}`}</Descriptions.Item>
-              <Descriptions.Item label="TCO (5 лет)" span={1}>{`$${results.fiveYearTco.toLocaleString()}`}</Descriptions.Item>
+              <Descriptions.Item label="OpEx/год" span={1}>{`$${(results.annualOpexUsd ?? 0).toLocaleString()}`}</Descriptions.Item>
+              <Descriptions.Item label="TCO (5 лет)" span={1}>{`$${(results.fiveYearTco ?? 0).toLocaleString()}`}</Descriptions.Item>
             </Descriptions>
           </StatCard>
         </Col>
@@ -89,15 +90,16 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         <Col xs={24} sm={8}>
           <StatCard 
             title="Производительность"
-            value={formData.userLoadConcurrentUsers}
+            value={formData.userLoadConcurrentUsers ?? 0}
             prefix={<TeamOutlined />}
             suffix="Польз."
             color="#722ed1"
             tooltip="Количество одновременных пользователей, которых может обслужить система"
+            precision={0}
           >
             <Descriptions size="small" column={1} colon={false} styles={{ label: { color: '#595959' }, content: { fontWeight: 500, color: '#262626' } }}>
-              <Descriptions.Item label="Модель" span={1}>{`${formData.modelParamsNumBillion}B`}</Descriptions.Item>
-              <Descriptions.Item label="Точность" span={1}>{`${formData.modelParamsBitsPrecision}-бит`}</Descriptions.Item>
+              <Descriptions.Item label="Модель" span={1}>{`${formData.modelParamsNumBillion ?? '?'}B`}</Descriptions.Item>
+              <Descriptions.Item label="Точность" span={1}>{`${formData.modelParamsBitsPrecision ?? '?'}-бит`}</Descriptions.Item>
             </Descriptions>
           </StatCard>
         </Col>
@@ -111,22 +113,22 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         <Col xs={24} md={12}>
           <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Капитальные затраты (CapEx):</Title>
           <Descriptions bordered size="small" column={1} styles={{ label: { width: '60%' } }}>
-            <Descriptions.Item label="Стоимость GPU">${results.totalGpuCost?.toLocaleString() || '-'}</Descriptions.Item>
-            <Descriptions.Item label="Стоимость серверов">${results.totalServerCost?.toLocaleString() || '-'}</Descriptions.Item>
-            <Descriptions.Item label="Сетевое оборудование">${results.networkCost.toLocaleString()}</Descriptions.Item>
-            <Descriptions.Item label="Хранилище (SSD/NVMe)">${Math.round(results.storageCostUsd).toLocaleString()}</Descriptions.Item>
-            <Descriptions.Item label="RAM">${Math.round(results.totalRamCost).toLocaleString()}</Descriptions.Item>
-            <Descriptions.Item label={<Text strong>Общие CapEx</Text>}><strong>${results.capexUsd.toLocaleString()}</strong></Descriptions.Item>
+            <Descriptions.Item label="Стоимость GPU">${results.totalGpuCost?.toLocaleString() ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Стоимость серверов">${results.totalServerCost?.toLocaleString() ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Сетевое оборудование">${(results.networkCost ?? 0).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label="Хранилище (SSD/NVMe)">${(Math.round(results.storageCostUsd ?? 0)).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label="RAM">${(Math.round(results.totalRamCost ?? 0)).toLocaleString()}</Descriptions.Item>
+            <Descriptions.Item label={<Text strong>Общие CapEx</Text>}><strong>${(results.capexUsd ?? 0).toLocaleString()}</strong></Descriptions.Item>
           </Descriptions>
         </Col>
           
         <Col xs={24} md={12}>
           <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Операционные затраты (OpEx):</Title>
           <Descriptions bordered size="small" column={1} styles={{ label: { width: '60%' } }}>
-            <Descriptions.Item label="Энергопотребление">{`${Math.round(results.annualEnergyKwh).toLocaleString()} кВт*ч/год`}</Descriptions.Item>
-            <Descriptions.Item label="Стоимость электроэнергии">{`$${Math.round(results.energyCostAnnual).toLocaleString()}/год`}</Descriptions.Item>
-            <Descriptions.Item label="Обслуживание">{`$${Math.round(results.maintenanceCostAnnual).toLocaleString()}/год`}</Descriptions.Item>
-            <Descriptions.Item label={<Text strong>Общие OpEx</Text>}><strong>{`$${Math.round(results.annualOpexUsd).toLocaleString()}/год`}</strong></Descriptions.Item>
+            <Descriptions.Item label="Энергопотребление">{`${(Math.round(results.annualEnergyKwh ?? 0)).toLocaleString()} кВт*ч/год`}</Descriptions.Item>
+            <Descriptions.Item label="Стоимость электроэнергии">{`$${(Math.round(results.energyCostAnnual ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
+            <Descriptions.Item label="Обслуживание">{`$${(Math.round(results.maintenanceCostAnnual ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
+            <Descriptions.Item label={<Text strong>Общие OpEx</Text>}><strong>{`$${(Math.round(results.annualOpexUsd ?? 0)).toLocaleString()}/год`}</strong></Descriptions.Item>
           </Descriptions>
         </Col>
       </Row>
@@ -135,9 +137,9 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
 
       <Title level={5} style={{ marginBottom: 16 }}>Дополнительные данные:</Title>
       <Descriptions bordered size="small" column={{ xs: 1, sm: 1, md: 3 }}>
-         <Descriptions.Item label={<><CloudServerOutlined style={{marginRight: 4}}/>Сеть</>}>{results.networkType}</Descriptions.Item>
-         <Descriptions.Item label={<><HddOutlined style={{marginRight: 4}}/>Хранилище</>}>{`${(results.storageRequirementsGB / 1000).toFixed(1)} ТБ`}</Descriptions.Item>
-         <Descriptions.Item label={<><ThunderboltOutlined style={{marginRight: 4}}/>RAM/сервер</>}>{`${Math.ceil(results.ramRequirementPerServerGB)} ГБ`}</Descriptions.Item>
+         <Descriptions.Item label={<><CloudServerOutlined style={{marginRight: 4}}/>Сеть</>}>{results.networkType || '-'}</Descriptions.Item>
+         <Descriptions.Item label={<><HddOutlined style={{marginRight: 4}}/>Хранилище</>}>{`${((results.storageRequirementsGB ?? 0) / 1000).toFixed(1)} ТБ`}</Descriptions.Item>
+         <Descriptions.Item label={<><ThunderboltOutlined style={{marginRight: 4}}/>RAM/сервер</>}>{`${Math.ceil(results.ramRequirementPerServerGB ?? 0)} ГБ`}</Descriptions.Item>
       </Descriptions>
     </Card>
   );

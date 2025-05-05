@@ -1,13 +1,16 @@
 /**
  * Расчет требуемого количества GPU
- * @param {Object} formData - Данные формы
+ * @param {Object} calcInputData - Данные формы (с эффективными токенами)
  * @returns {number} - Количество GPU
  */
-export const calcRequiredGpu = (formData) => {
-    const { userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, modelParamsTokensPerSecPerGpu } = formData;
+export const calcRequiredGpu = (calcInputData) => {
+    // Используем userLoadTokensPerRequest из calcInputData, который уже учитывает работу агентов
+    const { userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, modelParamsTokensPerSecPerGpu } = calcInputData;
     
-    const totalTokensPerSec = (userLoadConcurrentUsers * userLoadTokensPerRequest) / userLoadResponseTimeSec;
-    const numGpu = totalTokensPerSec / modelParamsTokensPerSecPerGpu;
+    // Общая требуемая производительность в токенах/сек
+    const totalTokensPerSec = safeDivide(userLoadConcurrentUsers * userLoadTokensPerRequest, userLoadResponseTimeSec);
+    // Требуемое количество GPU
+    const numGpu = safeDivide(totalTokensPerSec, modelParamsTokensPerSecPerGpu);
     
     return Math.ceil(numGpu);
   };
@@ -25,8 +28,9 @@ export const calcRequiredGpu = (formData) => {
     const totalGpuCost = numGpu * gpuConfigCostUsd;
     const totalServerCost = numServers * serverConfigCostUsd;
     
+    // Стоимость сети, хранилища и RAM теперь считается отдельно в хуке
     return { 
-      totalCost: totalGpuCost + totalServerCost, 
+      totalCost: totalGpuCost + totalServerCost, // Базовый CapEx
       numServers,
       totalGpuCost,
       totalServerCost
@@ -37,31 +41,35 @@ export const calcRequiredGpu = (formData) => {
    * Расчет операционных затрат (OpEx)
    * @param {number} numGpu - Количество GPU
    * @param {number} numServers - Количество серверов
-   * @param {Object} formData - Данные формы
+   * @param {Object} calcInputData - Данные формы
+   * @param {number} annualExternalToolCost - Годовая стоимость внешних инструментов
    * @returns {Object} - Результат расчета OpEx
    */
-  export const calcOpex = (numGpu, numServers, formData) => {
+  export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost) => {
     const { 
       gpuConfigPowerKw, 
       serverConfigPowerOverheadKw, 
       dcCostsElectricityCostUsdPerKwh, 
       dcCostsPue, 
       dcCostsAnnualMaintenanceRate 
-    } = formData;
+    } = calcInputData;
     
     const totalPowerKw = numGpu * gpuConfigPowerKw + numServers * serverConfigPowerOverheadKw;
     const annualEnergyKwh = totalPowerKw * 24 * 365 * dcCostsPue;
     const energyCost = annualEnergyKwh * dcCostsElectricityCostUsdPerKwh;
     
-    const capexResult = calcCapex(numGpu, formData);
-    const maintenanceCost = capexResult.totalCost * dcCostsAnnualMaintenanceRate;
+    // Пересчитываем базовый CapEx для расчета обслуживания 
+    // (или можно передавать totalCapex из хука, но так надежнее, если calcCapex изменится)
+    const baseCapexForMaintenance = calcCapex(numGpu, calcInputData).totalCost;
+    const maintenanceCost = baseCapexForMaintenance * dcCostsAnnualMaintenanceRate;
     
     return { 
-      totalOpex: energyCost + maintenanceCost, 
+      totalOpex: energyCost + maintenanceCost + annualExternalToolCost, // Добавили стоимость инструментов
       totalPowerKw, 
       annualEnergyKwh, 
       energyCost, 
-      maintenanceCost 
+      maintenanceCost, 
+      annualExternalToolCost // Возвращаем для информации
     };
   };
   
@@ -155,4 +163,10 @@ export const calcRequiredGpu = (formData) => {
       ramCostPerServer,
       totalRamCost: ramCostPerServer * serversRequired
     };
+  };
+
+  // Вспомогательная функция для безопасного деления (если ее еще нет)
+  const safeDivide = (numerator, denominator) => {
+    if (denominator === 0 || !denominator) return 0;
+    return numerator / denominator;
   };
