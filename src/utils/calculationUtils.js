@@ -39,11 +39,7 @@ export const calcRequiredGpu = (calcInputData) => {
   
   /**
    * Расчет операционных затрат (OpEx)
-   * @param {number} numGpu - Количество GPU
-   * @param {number} numServers - Количество серверов
-   * @param {Object} calcInputData - Данные формы
-   * @param {number} annualExternalToolCost - Годовая стоимость внешних инструментов
-   * @returns {Object} - Результат расчета OpEx
+   * Включает энергию, обслуживание, внешние инструменты и ПО
    */
   export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost) => {
     const { 
@@ -51,52 +47,43 @@ export const calcRequiredGpu = (calcInputData) => {
       serverConfigPowerOverheadKw, 
       dcCostsElectricityCostUsdPerKwh, 
       dcCostsPue, 
-      dcCostsAnnualMaintenanceRate 
+      dcCostsAnnualMaintenanceRate,
+      annualSoftwareCostPerServer // Получаем стоимость ПО из formData
     } = calcInputData;
     
     const totalPowerKw = (numGpu ?? 0) * (gpuConfigPowerKw ?? 0) + (numServers ?? 0) * (serverConfigPowerOverheadKw ?? 0);
     const annualEnergyKwh = totalPowerKw * 24 * 365 * (dcCostsPue ?? 1);
     const energyCost = annualEnergyKwh * (dcCostsElectricityCostUsdPerKwh ?? 0);
     
-    // Пересчитываем базовый CapEx для расчета обслуживания 
-    // (или можно передавать totalCapex из хука, но так надежнее, если calcCapex изменится)
     const baseCapexForMaintenance = calcCapex(numGpu, calcInputData).totalCost;
     const maintenanceCost = baseCapexForMaintenance * (dcCostsAnnualMaintenanceRate ?? 0);
     
+    // Рассчитываем годовую стоимость ПО
+    const annualSoftwareCost = (numServers ?? 0) * (annualSoftwareCostPerServer ?? 0);
+
     return { 
-      totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0), // Добавили стоимость инструментов
+      totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0) + annualSoftwareCost, // Добавляем стоимость ПО
       totalPowerKw, 
       annualEnergyKwh, 
       energyCost, 
       maintenanceCost, 
-      annualExternalToolCost: annualExternalToolCost ?? 0 // Возвращаем для информации
+      annualExternalToolCost: annualExternalToolCost ?? 0,
+      annualSoftwareCost // Возвращаем стоимость ПО для отображения
     };
   };
   
   /**
    * Расчет требований к хранилищу
-   * @param {Object} formData - Данные формы
-   * @param {number} serversRequired - Количество требуемых серверов
-   * @returns {Object} - Результаты расчета хранилища
+   * Использует storageCostPerGB из formData
    */
   export const calcStorageRequirements = (formData, serversRequired) => {
-    const { modelParamsNumBillion, modelParamsBitsPrecision } = formData;
-    
-    // Базовый размер модели в ГБ (параметры * биты / 8 / 1024^3)
+    const { modelParamsNumBillion, modelParamsBitsPrecision, storageCostPerGB } = formData;
     const modelSizeGB = safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
-    
-    // С учетом оптимизаций, кэширования, нескольких версий, дополнительных данных
     const recommendedStoragePerModel = modelSizeGB * 3;
-    
-    // Минимальный размер хранилища на сервер (для датасетов, логов и т.д.)
-    const minStoragePerServer = 2000; // 2 ТБ
-    
-    // Расчет общего требуемого хранилища
-    const totalStorageGB = recommendedStoragePerModel + (serversRequired ?? 0) * minStoragePerServer;
-    
-    // Примерная стоимость хранилища ($0.15 за ГБ для высокопроизводительных NVMe SSD)
-    const storageCostUsd = totalStorageGB * 0.15;
-    
+    const minStoragePerServer = 2000; 
+    const totalStorageGB = recommendedStoragePerModel + ((serversRequired ?? 0) * minStoragePerServer);
+    // Используем стоимость из formData
+    const storageCostUsd = totalStorageGB * (storageCostPerGB ?? 0.15); // 0.15 как fallback
     return {
       modelSizeGB,
       recommendedStoragePerModel,
@@ -107,33 +94,20 @@ export const calcRequiredGpu = (calcInputData) => {
   
   /**
    * Расчет требований к сетевой инфраструктуре
-   * @param {number} serversRequired - Количество требуемых серверов
-   * @param {number} requiredGpu - Количество GPU
-   * @returns {Object} - Результаты расчета сетевой инфраструктуры
+   * Использует networkCostPerPort из formData
    */
-  export const calcNetworkRequirements = (serversRequired, requiredGpu) => {
-    // Определение типа сети на основе количества GPU
-    let networkType = "Ethernet 100G";
-    let costPerPort = 500;
+  export const calcNetworkRequirements = (serversRequired, requiredGpu, formData) => { // Принимаем formData
+    const { networkCostPerPort, networkType } = formData; // Получаем стоимость порта и тип сети
     
-    if ((requiredGpu ?? 0) > 8) {
-      networkType = "InfiniBand HDR 200G";
-      costPerPort = 2000;
-    }
-    
-    if ((requiredGpu ?? 0) > 32) {
-      networkType = "InfiniBand NDR 400G";
-      costPerPort = 4000;
-    }
-    
-    // Расчет количества портов (2 на сервер для избыточности)
-    const numPorts = (serversRequired ?? 0) * 2;
-    
-    // Стоимость сетевого оборудования
-    const networkEquipmentCost = numPorts * costPerPort;
+    // Логика определения типа сети остается в хуке, здесь только считаем стоимость
+    // const numPorts = (serversRequired ?? 0) * 2;
+    // Используем более сложную логику - по 2 порта на сервер + порты на свитчах для связи серверов?
+    // Упрощенно: считаем стоимость портов только на серверах
+    const numPorts = (serversRequired ?? 0) * 2; 
+    const networkEquipmentCost = numPorts * (networkCostPerPort ?? 500); // 500 как fallback
     
     return {
-      networkType,
+      // networkType теперь берется из formData в хуке
       numPorts,
       networkEquipmentCost
     };
@@ -141,22 +115,14 @@ export const calcRequiredGpu = (calcInputData) => {
   
   /**
    * Расчет требований к оперативной памяти
-   * @param {Object} formData - Данные формы
-   * @param {number} serversRequired - Количество требуемых серверов
-   * @returns {Object} - Результаты расчета RAM
+   * Использует ramCostPerGB из formData
    */
   export const calcRamRequirements = (formData, serversRequired) => {
-    const { gpuConfigVramGb, serverConfigNumGpuPerServer } = formData;
-    
-    // Рекомендуемый объем RAM на сервер (в 2-3 раза больше суммарного VRAM)
+    const { gpuConfigVramGb, serverConfigNumGpuPerServer, ramCostPerGB } = formData;
     const recommendedRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0) * 2.5;
-    
-    // Минимальный объем RAM на сервер
     const minRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0);
-    
-    // Стоимость RAM (приблизительно $10 за ГБ)
-    const ramCostPerServer = recommendedRamPerServer * 10;
-    
+    // Используем стоимость из formData
+    const ramCostPerServer = recommendedRamPerServer * (ramCostPerGB ?? 10); // 10 как fallback
     return {
       minRamPerServer,
       recommendedRamPerServer,

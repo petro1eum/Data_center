@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, Divider, Alert, Descriptions, Space, Tooltip } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Divider, Alert, Descriptions, Space, Tooltip, List } from 'antd';
 import { 
   BarChartOutlined, 
   DollarCircleOutlined, 
@@ -7,8 +7,12 @@ import {
   WarningOutlined, 
   HddOutlined, 
   ThunderboltOutlined, 
-  CloudServerOutlined 
+  CloudServerOutlined, 
+  ExclamationCircleOutlined,
+  CloudOutlined,
+  CodeOutlined
 } from '@ant-design/icons';
+import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 
 const { Title, Text } = Typography;
 
@@ -36,7 +40,7 @@ const StatCard = ({ title, tooltip, value, prefix, suffix, precision, formatter,
 /**
  * Компонент панели результатов с улучшенным дизайном Ant Design
  */
-const ResultsPanel = ({ results, formData, modelSizeError }) => {
+const ResultsPanel = ({ results, formData, modelSizeError, configWarnings }) => {
   return (
     <Card variant="borderless">
       <Title level={4} style={{ marginBottom: 24 }}>Результаты расчетов</Title>
@@ -48,8 +52,27 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
           type="warning"
           showIcon
           icon={<WarningOutlined />}
-          style={{ marginBottom: 24 }}
+          style={{ marginBottom: 16 }}
+          closable
         />
+      )}
+      
+      {configWarnings && configWarnings.length > 0 && (
+          <Alert
+            message="Предупреждения по конфигурации"
+            description={
+                <List
+                    size="small"
+                    dataSource={configWarnings}
+                    renderItem={(item) => <List.Item style={{ padding: '4px 0', border: 'none' }}><ExclamationCircleOutlined style={{ marginRight: 8, color: '#faad14'}} /> {item}</List.Item>}
+                />
+            }
+            type="warning"
+            showIcon
+            icon={<WarningOutlined />}
+            style={{ marginBottom: 24 }}
+            closable
+          />
       )}
       
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
@@ -114,7 +137,7 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
           <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Капитальные затраты (CapEx):</Title>
           <Descriptions bordered size="small" column={1} styles={{ label: { width: '60%' } }}>
             <Descriptions.Item label="Стоимость GPU">${results.totalGpuCost?.toLocaleString() ?? '-'}</Descriptions.Item>
-            <Descriptions.Item label="Стоимость серверов">${results.totalServerCost?.toLocaleString() ?? '-'}</Descriptions.Item>
+            <Descriptions.Item label="Стоимость серверов (без GPU)">${results.totalServerCost?.toLocaleString() ?? '-'}</Descriptions.Item>
             <Descriptions.Item label="Сетевое оборудование">${(results.networkCost ?? 0).toLocaleString()}</Descriptions.Item>
             <Descriptions.Item label="Хранилище (SSD/NVMe)">${(Math.round(results.storageCostUsd ?? 0)).toLocaleString()}</Descriptions.Item>
             <Descriptions.Item label="RAM">${(Math.round(results.totalRamCost ?? 0)).toLocaleString()}</Descriptions.Item>
@@ -123,11 +146,17 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         </Col>
           
         <Col xs={24} md={12}>
-          <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Операционные затраты (OpEx):</Title>
+          <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Операционные затраты (OpEx - Год):</Title>
           <Descriptions bordered size="small" column={1} styles={{ label: { width: '60%' } }}>
             <Descriptions.Item label="Энергопотребление">{`${(Math.round(results.annualEnergyKwh ?? 0)).toLocaleString()} кВт*ч/год`}</Descriptions.Item>
             <Descriptions.Item label="Стоимость электроэнергии">{`$${(Math.round(results.energyCostAnnual ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
             <Descriptions.Item label="Обслуживание">{`$${(Math.round(results.maintenanceCostAnnual ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
+            {(results.annualSoftwareCost ?? 0) > 0 && (
+                <Descriptions.Item label="Стоимость ПО">{`$${(Math.round(results.annualSoftwareCost ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
+            )}
+            {formData.isAgentModeEnabled && (results.annualExternalToolCost ?? 0) > 0 && (
+                <Descriptions.Item label="Стоимость внешних Tools">{`$${(Math.round(results.annualExternalToolCost ?? 0)).toLocaleString()}/год`}</Descriptions.Item>
+            )}
             <Descriptions.Item label={<Text strong>Общие OpEx</Text>}><strong>{`$${(Math.round(results.annualOpexUsd ?? 0)).toLocaleString()}/год`}</strong></Descriptions.Item>
           </Descriptions>
         </Col>
@@ -135,11 +164,14 @@ const ResultsPanel = ({ results, formData, modelSizeError }) => {
         
       <Divider />
 
-      <Title level={5} style={{ marginBottom: 16 }}>Дополнительные данные:</Title>
-      <Descriptions bordered size="small" column={{ xs: 1, sm: 1, md: 3 }}>
-         <Descriptions.Item label={<><CloudServerOutlined style={{marginRight: 4}}/>Сеть</>}>{results.networkType || '-'}</Descriptions.Item>
-         <Descriptions.Item label={<><HddOutlined style={{marginRight: 4}}/>Хранилище</>}>{`${((results.storageRequirementsGB ?? 0) / 1000).toFixed(1)} ТБ`}</Descriptions.Item>
-         <Descriptions.Item label={<><ThunderboltOutlined style={{marginRight: 4}}/>RAM/сервер</>}>{`${Math.ceil(results.ramRequirementPerServerGB ?? 0)} ГБ`}</Descriptions.Item>
+      <Title level={5} style={{ marginBottom: 16 }}>Дополнительные данные конфигурации:</Title>
+      <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}> 
+         <Descriptions.Item label={<><CloudOutlined style={{marginRight: 4}}/>Сеть</>}>{formData.networkType || 'N/A'}</Descriptions.Item> 
+         <Descriptions.Item label={<><HddOutlined style={{marginRight: 4}}/>Хранилище</>}>{formData.storageType || 'N/A'}</Descriptions.Item> 
+         <Descriptions.Item label={<><CodeOutlined style={{marginRight: 4}}/>RAM</>}>{formData.ramType || 'N/A'}</Descriptions.Item> 
+         <Descriptions.Item label="ПО Сервера">{SOFTWARE_PRESETS[formData.selectedSoftwarePreset]?.name || 'N/A'}</Descriptions.Item>
+         <Descriptions.Item label="Расчетное Хран. (Общее)">{`${((results.storageRequirementsGB ?? 0) / 1000).toFixed(1)} ТБ`}</Descriptions.Item> 
+         <Descriptions.Item label="Расчетная RAM / Сервер">{`${Math.ceil(results.ramRequirementPerServerGB ?? 0)} ГБ`}</Descriptions.Item> 
       </Descriptions>
     </Card>
   );

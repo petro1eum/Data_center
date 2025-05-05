@@ -14,11 +14,18 @@ import {
   SlidersOutlined, // Иконка для настроек агентов
   RobotOutlined, // Иконка для агентов
   RetweetOutlined, // Иконка для LLM вызовов
-  ToolOutlined // Иконка для Tool вызовов
+  ToolOutlined, // Иконка для Tool вызовов
+  CloudOutlined, // Сеть
+  CodeOutlined, // RAM (чип)
+  AppstoreAddOutlined // ПО
 } from '@ant-design/icons';
 import { MODEL_PRESETS } from '../../data/modelPresets';
 import { GPU_PRESETS } from '../../data/gpuPresets';
 import { SERVER_PRESETS } from '../../data/serverPresets';
+import { NETWORK_PRESETS } from '../../data/networkPresets';
+import { STORAGE_PRESETS } from '../../data/storagePresets';
+import { RAM_PRESETS } from '../../data/ramPresets';
+import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 
 const { Option } = Select;
 const { Text, Paragraph, Title } = Typography;
@@ -59,9 +66,17 @@ const SettingsPanel = ({
   selectedModelPreset, 
   selectedGpuPreset, 
   selectedServerPreset,
+  selectedNetworkPreset,
+  selectedStoragePreset,
+  selectedRamPreset,
+  selectedSoftwarePreset,
   applyModelPreset,
   applyGpuPreset,
   applyServerPreset,
+  applyNetworkPreset,
+  applyStoragePreset,
+  applyRamPreset,
+  applySoftwarePreset,
   setBatchingOptimizationFactor,
   activeTab, 
   setActiveTab,
@@ -72,6 +87,10 @@ const SettingsPanel = ({
   const modelOptions = createOptions(MODEL_PRESETS);
   const gpuOptions = createOptions(GPU_PRESETS);
   const serverOptions = createOptions(SERVER_PRESETS);
+  const networkOptions = createOptions(NETWORK_PRESETS);
+  const storageOptions = createOptions(STORAGE_PRESETS);
+  const ramOptions = createOptions(RAM_PRESETS);
+  const softwareOptions = createOptions(SOFTWARE_PRESETS);
 
   // Обработчик для Select компонентов Ant Design
   const handleSelectChange = (name, value) => {
@@ -119,7 +138,7 @@ const SettingsPanel = ({
           <Form.Item label="Пресет модели">
             <Select
               showSearch
-              placeholder="Выберите модель..."
+                placeholder="Выберите модель..." 
               value={selectedModelPreset || undefined} 
               onChange={(value) => handlePresetSelectChange(applyModelPreset, value)}
               options={modelOptions}
@@ -156,7 +175,7 @@ const SettingsPanel = ({
             <Col span={12}>
               <Form.Item label="Точность весов (бит)">
                 <Select
-                  name="modelParamsBitsPrecision"
+                    name="modelParamsBitsPrecision"
                   value={String(formData.modelParamsBitsPrecision)} 
                   onChange={(value) => handleSelectChange('modelParamsBitsPrecision', value)}
                 >
@@ -169,14 +188,14 @@ const SettingsPanel = ({
           </Row>
           
           <Form.Item 
-            label="Производительность (токенов/с на GPU)"
+                label="Производительность (токенов/с на GPU)"
             tooltip={{ title: 'Сколько токенов в секунду генерирует один GPU для этой модели', icon: <InfoCircleOutlined /> }}
           >
             <InputNumber 
                style={{ width: '100%'}}
                min={0}
-              name="modelParamsTokensPerSecPerGpu"
-              value={formData.modelParamsTokensPerSecPerGpu}
+                name="modelParamsTokensPerSecPerGpu"
+                value={formData.modelParamsTokensPerSecPerGpu}
               onChange={(value) => handleFormChange('modelParamsTokensPerSecPerGpu', value)}
               prefix={<DashboardOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
             />
@@ -193,7 +212,7 @@ const SettingsPanel = ({
               <Option value="5">Экстремальная оптимизация (5x)</Option>
             </Select>
             <Paragraph type="secondary" style={{ marginTop: '5px', fontSize: '12px' }}>
-              Учитывает возможное повышение эффективности при использовании vLLM, TGI и других оптимизаций
+                  Учитывает возможное повышение эффективности при использовании vLLM, TGI и других оптимизаций
             </Paragraph>
           </Form.Item>
         </Form>
@@ -207,8 +226,8 @@ const SettingsPanel = ({
                 <InputNumber 
                   style={{ width: '100%'}}
                   min={1}
-                  name="userLoadConcurrentUsers"
-                  value={formData.userLoadConcurrentUsers}
+                name="userLoadConcurrentUsers"
+                value={formData.userLoadConcurrentUsers}
                   onChange={(value) => handleFormChange('userLoadConcurrentUsers', value)}
                 />
               </Form.Item>
@@ -216,8 +235,8 @@ const SettingsPanel = ({
                 <InputNumber 
                    style={{ width: '100%'}}
                    min={1}
-                  name="userLoadTokensPerRequest"
-                  value={formData.userLoadTokensPerRequest}
+                name="userLoadTokensPerRequest"
+                value={formData.userLoadTokensPerRequest}
                    onChange={(value) => handleFormChange('userLoadTokensPerRequest', value)}
                 />
               </Form.Item>
@@ -226,8 +245,8 @@ const SettingsPanel = ({
                    style={{ width: '100%'}}
                    min={0.1}
                    step={0.1}
-                  name="userLoadResponseTimeSec"
-                  value={formData.userLoadResponseTimeSec}
+                name="userLoadResponseTimeSec"
+                value={formData.userLoadResponseTimeSec}
                    onChange={(value) => handleFormChange('userLoadResponseTimeSec', value)}
                 />
               </Form.Item>
@@ -240,7 +259,7 @@ const SettingsPanel = ({
               <Form.Item label="Тип GPU">
                 <Select
                   showSearch
-                  placeholder="Выберите GPU..."
+                placeholder="Выберите GPU..." 
                   value={selectedGpuPreset || undefined}
                   onChange={(value) => handlePresetSelectChange(applyGpuPreset, value)}
                   options={gpuOptions}
@@ -262,7 +281,7 @@ const SettingsPanel = ({
               <Form.Item label="Тип сервера">
                 <Select
                   showSearch
-                  placeholder="Выберите сервер..."
+                placeholder="Выберите сервер..." 
                   value={selectedServerPreset || undefined}
                   onChange={(value) => handlePresetSelectChange(applyServerPreset, value)}
                   options={serverOptions}
@@ -300,8 +319,8 @@ const SettingsPanel = ({
                    min={0}
                    formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                    parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
-                   name="gpuConfigCostUsd"
-                   value={formData.gpuConfigCostUsd}
+                name="gpuConfigCostUsd"
+                value={formData.gpuConfigCostUsd}
                    onChange={(value) => handleFormChange('gpuConfigCostUsd', value)}
                  />
                </Form.Item>
@@ -310,8 +329,8 @@ const SettingsPanel = ({
                     style={{ width: '100%'}}
                     min={0}
                     step={0.01}
-                   name="gpuConfigPowerKw"
-                   value={formData.gpuConfigPowerKw}
+                name="gpuConfigPowerKw"
+                value={formData.gpuConfigPowerKw}
                    onChange={(value) => handleFormChange('gpuConfigPowerKw', value)}
                  />
                </Form.Item>
@@ -319,8 +338,8 @@ const SettingsPanel = ({
                  <InputNumber 
                     style={{ width: '100%'}}
                     min={0}
-                   name="gpuConfigVramGb"
-                   value={formData.gpuConfigVramGb}
+                name="gpuConfigVramGb"
+                value={formData.gpuConfigVramGb}
                    onChange={(value) => handleFormChange('gpuConfigVramGb', value)}
                  />
                </Form.Item>
@@ -334,8 +353,8 @@ const SettingsPanel = ({
                  <InputNumber 
                    style={{ width: '100%'}}
                    min={1}
-                   name="serverConfigNumGpuPerServer"
-                   value={formData.serverConfigNumGpuPerServer}
+                name="serverConfigNumGpuPerServer"
+                value={formData.serverConfigNumGpuPerServer}
                    onChange={(value) => handleFormChange('serverConfigNumGpuPerServer', value)}
                  />
                </Form.Item>
@@ -345,21 +364,21 @@ const SettingsPanel = ({
                     min={0}
                     formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
                     parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
-                   name="serverConfigCostUsd"
-                   value={formData.serverConfigCostUsd}
+                name="serverConfigCostUsd"
+                value={formData.serverConfigCostUsd}
                     onChange={(value) => handleFormChange('serverConfigCostUsd', value)}
-                 />
+              />
                </Form.Item>
                <Form.Item 
-                 label="Доп. энергопотребление (кВт)"
+                label="Доп. энергопотребление (кВт)"
                  tooltip={{ title: 'Энергопотребление CPU, RAM, SSD и др.', icon: <InfoCircleOutlined /> }}
                >
                  <InputNumber 
                     style={{ width: '100%'}}
                     min={0}
                     step={0.1}
-                   name="serverConfigPowerOverheadKw"
-                   value={formData.serverConfigPowerOverheadKw}
+                name="serverConfigPowerOverheadKw"
+                value={formData.serverConfigPowerOverheadKw}
                     onChange={(value) => handleFormChange('serverConfigPowerOverheadKw', value)}
                  />
                </Form.Item>
@@ -367,55 +386,129 @@ const SettingsPanel = ({
            </Card>
         </Col>
       </Row>
-      <Card title={<><DollarCircleOutlined style={{ marginRight: 8 }} /> Затраты ЦОД</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
+      <Card title={<><InfoCircleOutlined style={{ marginRight: 8 }} /> Детализация ЦОД</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
         <Form layout="vertical">
+            <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                   <Form.Item 
+                        label="Сетевая инфраструктура"
+                        tooltip="Тип и стоимость сетевого оборудования"
+                   >
+                        <Select
+                            showSearch
+                            placeholder="Выберите тип сети..."
+                            value={selectedNetworkPreset || undefined}
+                            onChange={applyNetworkPreset}
+                            options={networkOptions}
+                            optionRender={renderOption} 
+                            filterOption={(input, option) => 
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                        />
+                    </Form.Item>
+                </Col>
+                 <Col xs={24} sm={12}>
+                   <Form.Item 
+                        label="Тип хранилища"
+                        tooltip="Тип и стоимость дисковой подсистемы"
+                   >
+                        <Select
+                            showSearch
+                            placeholder="Выберите тип хранилища..."
+                            value={selectedStoragePreset || undefined}
+                            onChange={applyStoragePreset} 
+                            options={storageOptions}
+                            optionRender={renderOption} 
+                            filterOption={(input, option) => 
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                        />
+                   </Form.Item>
+                </Col>
+             </Row>
              <Row gutter={16}>
-              <Col xs={24} sm={8}>
-                <Form.Item label="Электроэнергия (USD/кВт*ч)">
-                  <InputNumber 
-                     style={{ width: '100%'}}
-                     min={0}
-                     step={0.01}
-                    name="dcCostsElectricityCostUsdPerKwh"
-                    value={formData.dcCostsElectricityCostUsdPerKwh}
-                     onChange={(value) => handleFormChange('dcCostsElectricityCostUsdPerKwh', value)}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Form.Item 
-                  label="PUE"
-                  tooltip={{ title: 'Коэффициент эффективности ЦОД (обычно 1.2-1.5)', icon: <InfoCircleOutlined /> }}
-                >
-                  <InputNumber 
-                     style={{ width: '100%'}}
-                     min={1.0}
-                     step={0.05}
-                    name="dcCostsPue"
-                    value={formData.dcCostsPue}
-                     onChange={(value) => handleFormChange('dcCostsPue', value)}
-                  />
-                </Form.Item>
-              </Col>
-              <Col xs={24} sm={8}>
-                <Form.Item 
-                  label="Обслуживание (%)"
-                  tooltip={{ title: 'Ежегодно от общей стоимости оборудования', icon: <InfoCircleOutlined /> }}
-                >
-                  <InputNumber 
-                     style={{ width: '100%'}}
-                     min={0}
-                     max={100}
-                     step={0.5}
-                     formatter={(value) => `${value}%`}
-                     parser={(value) => value?.replace('%', '') ?? ''}
-                    name="dcCostsAnnualMaintenanceRate"
-                    value={formData.dcCostsAnnualMaintenanceRate * 100} // Конвертируем в % для отображения
-                     onChange={(value) => handleFormChange('dcCostsAnnualMaintenanceRate', (value || 0) / 100)} // Конвертируем обратно
-                  />
-                </Form.Item>
-              </Col>
-            </Row>
+                <Col xs={24} sm={12}>
+                   <Form.Item 
+                        label="Тип RAM"
+                        tooltip="Тип и стоимость оперативной памяти"
+                   >
+                        <Select
+                            showSearch
+                            placeholder="Выберите тип RAM..."
+                            value={selectedRamPreset || undefined}
+                            onChange={applyRamPreset} 
+                            options={ramOptions}
+                            optionRender={renderOption} 
+                            filterOption={(input, option) => 
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                        />
+                   </Form.Item>
+                </Col>
+                <Col xs={24} sm={12}>
+                   <Form.Item 
+                        label="Серверное ПО"
+                        tooltip="Операционная система, системы управления и другое ПО"
+                   >
+                        <Select
+                            showSearch
+                            placeholder="Выберите стек ПО..."
+                            value={selectedSoftwarePreset || undefined}
+                            onChange={applySoftwarePreset} 
+                            options={softwareOptions}
+                            optionRender={renderOption} 
+                            filterOption={(input, option) => 
+                            (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+                            }
+                        />
+                   </Form.Item>
+                </Col>
+             </Row>
+          </Form>
+      </Card>
+      <Card title={<><DollarCircleOutlined style={{ marginRight: 8 }} /> Затраты ЦОД (Базовые)</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
+         <Form layout="vertical">
+             <Row gutter={16}>
+                <Col xs={24} sm={8}>
+                    <Form.Item label="Электроэнергия (USD/кВт*ч)">
+                    <InputNumber 
+                       style={{ width: '100%'}}
+                       min={0}
+                       step={0.01}
+                  name="dcCostsElectricityCostUsdPerKwh"
+                  value={formData.dcCostsElectricityCostUsdPerKwh}
+                       onChange={(value) => handleFormChange('dcCostsElectricityCostUsdPerKwh', value)}
+                     />
+                    </Form.Item>
+                </Col>
+                <Col xs={24} sm={8}>
+                    <Form.Item label="PUE" tooltip={{ title: 'Коэффициент эффективности ЦОД (обычно 1.2-1.5)', icon: <InfoCircleOutlined /> }}>
+                    <InputNumber 
+                       style={{ width: '100%'}}
+                       min={1.0}
+                       step={0.05}
+                  name="dcCostsPue"
+                  value={formData.dcCostsPue}
+                       onChange={(value) => handleFormChange('dcCostsPue', value)}
+                     />
+                    </Form.Item>
+                </Col>
+                <Col xs={24} sm={8}>
+                    <Form.Item label="Обслуживание (%)" tooltip={{ title: 'Ежегодно от общей стоимости оборудования', icon: <InfoCircleOutlined /> }}>
+                    <InputNumber 
+                       style={{ width: '100%'}}
+                       min={0}
+                       max={100}
+                       step={0.5}
+                       formatter={(value) => `${value}%`}
+                       parser={(value) => value?.replace('%', '') ?? ''}
+                      name="dcCostsAnnualMaintenanceRate"
+                      value={formData.dcCostsAnnualMaintenanceRate * 100}
+                       onChange={(value) => handleFormChange('dcCostsAnnualMaintenanceRate', (value || 0) / 100)}
+                     />
+                    </Form.Item>
+                </Col>
+             </Row>
           </Form>
       </Card>
     </Space>
@@ -440,7 +533,7 @@ const SettingsPanel = ({
                                         disabled={isAgentSwitchDisabled}
                                     />
                                 </Form.Item>
-                            </div>
+              </div>
                         </Tooltip>
                     </Col>
                     {formData.isAgentModeEnabled && (

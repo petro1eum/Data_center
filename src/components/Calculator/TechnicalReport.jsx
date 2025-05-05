@@ -1,6 +1,7 @@
 import React from 'react';
 import { Card, Typography, List, Alert, Divider, Tag } from 'antd';
 import { WarningOutlined, CheckCircleOutlined, ExperimentOutlined, ToolOutlined, RobotOutlined } from '@ant-design/icons';
+import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 
 const { Title, Paragraph, Text } = Typography;
 
@@ -62,18 +63,22 @@ const TechnicalReport = ({ formData, results, modelSizeError }) => {
       
       {formData.isAgentModeEnabled && (
         <Paragraph>
-           Расчеты OpEx и TCO учитывают <Text strong>{formData.agentRequestPercentage}%</Text> запросов, обрабатываемых мультиагентными системами.
+           Расчеты OpEx и TCO учитывают {formData.agentRequestPercentage}% запросов, обрабатываемых мультиагентными системами.
            Параметры одного агентского workflow: 
-           <Text strong>{formData.avgAgentsPerTask ?? 0}</Text> агентов, 
-           <Text strong>{formData.avgLlmCallsPerAgent ?? 0}</Text> вызовов LLM/агент, 
-           <Text strong>{formData.avgToolCallsPerAgent ?? 0}</Text> вызовов Tool/агент. 
-           При этом годовая стоимость внешних вызовов инструментов оценивается в <Text strong>${(results.annualExternalToolCost ?? 0).toLocaleString()}</Text>.
+           {formData.avgAgentsPerTask ?? 0} агентов, 
+           {formData.avgLlmCallsPerAgent ?? 0} вызовов LLM/агент, 
+           {formData.avgToolCallsPerAgent ?? 0} вызовов Tool/агент. 
+           При этом годовая стоимость внешних вызовов инструментов оценивается в ${(results.annualExternalToolCost ?? 0).toLocaleString()}.
         </Paragraph>
       )}
       
       <Paragraph>
-        Для хранения модели, датасетов и сопутствующего ПО потребуется примерно <Text strong>{((results.storageRequirementsGB ?? 0) / 1000).toFixed(1)} ТБ</Text> высокопроизводительного SSD/NVMe хранилища.
-        Для оптимальной производительности каждый сервер должен быть оснащен <Text strong>{Math.ceil(results.ramRequirementPerServerGB ?? 0)} ГБ</Text> оперативной памяти.
+        Для хранения модели ({formData.modelParamsNumBillion ?? '?'}B, {formData.modelParamsBitsPrecision ?? '?'}-бит) и данных потребуется ~{((results.storageRequirementsGB ?? 0) / 1000).toFixed(1)} ТБ дискового пространства типа <Text strong>{formData.storageType || 'N/A'}</Text>.
+        Каждый сервер рекомендуется оснастить <Text strong>{Math.ceil(results.ramRequirementPerServerGB ?? 0)} ГБ</Text> оперативной памяти типа <Text strong>{formData.ramType || 'N/A'}</Text>.
+        Сетевая инфраструктура будет использовать <Text strong>{formData.networkType || 'N/A'}</Text>.
+        {(formData.annualSoftwareCostPerServer ?? 0) > 0 && 
+         ` Годовые затраты на ПО составляют ~$${(results.annualSoftwareCost ?? 0).toLocaleString()} (${SOFTWARE_PRESETS[formData.selectedSoftwarePreset]?.name || 'Custom'}).`
+        }
       </Paragraph>
       
       <Paragraph>

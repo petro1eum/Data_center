@@ -16,8 +16,12 @@ import {
   DatabaseOutlined,
   ToolOutlined,
   RetweetOutlined,
-  RobotOutlined
+  RobotOutlined,
+  CodeOutlined,
+  AppstoreAddOutlined,
+  CloudOutlined
 } from '@ant-design/icons';
+import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -56,14 +60,19 @@ const AnalyticsPanel = ({ results, formData }) => {
         maintenanceCostAnnual, ramRequirementPerServerGB, networkCost, storageCostUsd, totalRamCost,
         annualExternalToolCost,
         totalLlmCallsPerSecond,
-        totalToolCallsPerSecond
+        totalToolCallsPerSecond,
+        annualSoftwareCost
     } = results;
     const { 
         userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, 
         gpuConfigModel, gpuConfigVramGb, serverConfigNumGpuPerServer, modelParamsNumBillion,
         modelParamsBitsPrecision, batchingOptimizationFactor,
         modelParamsTokensPerSecPerGpu,
-        isAgentModeEnabled
+        isAgentModeEnabled,
+        networkType,
+        storageType,
+        ramType,
+        selectedSoftwarePreset
     } = formData;
 
     // Экономика
@@ -101,6 +110,8 @@ const AnalyticsPanel = ({ results, formData }) => {
     const ramCostPercentOfCapex = safeDivide(totalRamCost * 100, capexUsd);
     
     const externalToolCostPercentOfOpex = safeDivide((annualExternalToolCost ?? 0) * 100, annualOpexUsd);
+    
+    const softwareCostPercentOfOpex = safeDivide((annualSoftwareCost ?? 0) * 100, annualOpexUsd);
     
     // --- Рендеринг --- 
     return (
@@ -274,6 +285,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                                          <Space direction="vertical" size={2}>
                                             <Text>• Энергия: {(energyCostPercentOfOpex ?? 0).toFixed(1)}% (${(energyCostAnnual ?? 0).toLocaleString()})</Text>
                                             <Text>• Обслуживание: {(maintenanceCostPercentOfOpex ?? 0).toFixed(1)}% (${(maintenanceCostAnnual ?? 0).toLocaleString()})</Text>
+                                            <Text>• ПО: {(softwareCostPercentOfOpex ?? 0).toFixed(1)}% (${(annualSoftwareCost ?? 0).toLocaleString()})</Text>
                                             {isAgentModeEnabled && (annualExternalToolCost ?? 0) > 0 && (
                                                 <Text>• Внешние Tools: {(externalToolCostPercentOfOpex ?? 0).toFixed(1)}% (${(annualExternalToolCost ?? 0).toLocaleString()})</Text>
                                             )}
@@ -285,7 +297,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                     </Card>
                 </Col>
                 <Col xs={24} lg={12}>
-                    <Card title={<><DeploymentUnitOutlined style={{ marginRight: 8 }} />Утилизация Ресурсов</>} size="small" hoverable>
+                    <Card title={<><DeploymentUnitOutlined style={{ marginRight: 8 }} />Утилизация и Конфигурация</>} size="small" hoverable>
                        <Space direction="vertical" style={{ width: '100%' }} size="middle">
                             <div>
                                 <Text strong>Утилизация GPU слотов: </Text>
@@ -303,7 +315,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                             </div>
                             <Divider style={{ margin: '8px 0'}}/>
                              <div>
-                                <Text strong>Параметры нагрузки и конфигурации:</Text>
+                                <Text strong>Ключевые компоненты конфигурации:</Text>
                                 <Descriptions bordered size="small" column={1} style={{ marginTop: 8}} >
                                     <Descriptions.Item label={<><UserOutlined /> Пользователи</>}>{(formData.userLoadConcurrentUsers ?? 0).toLocaleString()}</Descriptions.Item>
                                     <Descriptions.Item label={<><DatabaseOutlined /> Модель</>}>{`${formData.modelParamsNumBillion ?? '?'}B (${formData.modelParamsBitsPrecision ?? '?'}-бит)`}</Descriptions.Item>
@@ -317,6 +329,11 @@ const AnalyticsPanel = ({ results, formData }) => {
                                     <Descriptions.Item label={<><DeploymentUnitOutlined /> GPU на сервер</>}>{formData.serverConfigNumGpuPerServer ?? 0}</Descriptions.Item>
                                     <Descriptions.Item label={<><InfoCircleOutlined/> Токены/запрос</>}>{formData.userLoadTokensPerRequest ?? 0}</Descriptions.Item>
                                     <Descriptions.Item label={<><FieldTimeOutlined/> Время ответа</>}>{formData.userLoadResponseTimeSec ?? 0} сек</Descriptions.Item>
+                                    <Descriptions.Item label={<><DeploymentUnitOutlined /> GPU</>}>{`${results.requiredGpu ?? 0} x ${formData.gpuConfigModel || 'N/A'}`}</Descriptions.Item>
+                                    <Descriptions.Item label={<><CloudOutlined style={{marginRight: 4}}/>Сеть</>}>{formData.networkType || 'N/A'}</Descriptions.Item>
+                                    <Descriptions.Item label={<><HddOutlined style={{marginRight: 4}}/>Хранилище</>}>{formData.storageType || 'N/A'}</Descriptions.Item>
+                                    <Descriptions.Item label={<><CodeOutlined style={{marginRight: 4}}/>RAM</>}>{formData.ramType || 'N/A'}</Descriptions.Item>
+                                    <Descriptions.Item label={<><AppstoreAddOutlined style={{marginRight: 4}}/>ПО</>}>{SOFTWARE_PRESETS[selectedSoftwarePreset]?.name || 'N/A'}</Descriptions.Item>
                                 </Descriptions>
                              </div>
                        </Space>

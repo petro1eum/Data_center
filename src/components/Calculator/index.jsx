@@ -25,6 +25,7 @@ const GenAIDataCenterCalculator = () => {
                     results={calculator.results}
                     formData={calculator.formData}
                     modelSizeError={calculator.modelSizeError}
+                    configWarnings={calculator.configWarnings}
                   />,
     },
     {
