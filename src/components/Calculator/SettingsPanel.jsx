@@ -406,6 +406,18 @@ const SettingsPanel = ({
                             }
                         />
                     </Form.Item>
+                    <Form.Item label="Стоимость порта сети (USD)">
+                        <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            step={50}
+                            formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                            parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
+                            name="networkCostPerPort"
+                            value={formData.networkCostPerPort}
+                            onChange={(value) => handleFormChange('networkCostPerPort', value)}
+                        />
+                    </Form.Item>
                 </Col>
                  <Col xs={24} sm={12}>
                    <Form.Item 
@@ -422,6 +434,19 @@ const SettingsPanel = ({
                             filterOption={(input, option) => 
                             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                             }
+                        />
+                   </Form.Item>
+                   <Form.Item label="Стоимость хранилища ($/ГБ)">
+                        <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            step={0.01}
+                            precision={2}
+                            formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                            parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
+                            name="storageCostPerGB"
+                            value={formData.storageCostPerGB}
+                            onChange={(value) => handleFormChange('storageCostPerGB', value)}
                         />
                    </Form.Item>
                 </Col>
@@ -444,6 +469,19 @@ const SettingsPanel = ({
                             }
                         />
                    </Form.Item>
+                   <Form.Item label="Стоимость RAM ($/ГБ)">
+                        <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            step={1}
+                            precision={0}
+                            formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                            parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
+                            name="ramCostPerGB"
+                            value={formData.ramCostPerGB}
+                            onChange={(value) => handleFormChange('ramCostPerGB', value)}
+                        />
+                   </Form.Item>
                 </Col>
                 <Col xs={24} sm={12}>
                    <Form.Item 
@@ -460,6 +498,18 @@ const SettingsPanel = ({
                             filterOption={(input, option) => 
                             (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                             }
+                        />
+                   </Form.Item>
+                   <Form.Item label="Годовая стоимость ПО ($/сервер)">
+                        <InputNumber
+                            style={{ width: '100%' }}
+                            min={0}
+                            step={100}
+                            formatter={(value) => `$ ${value}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
+                            parser={(value) => value?.replace(/\$\s?|(,*)/g, '') ?? ''}
+                            name="annualSoftwareCostPerServer"
+                            value={formData.annualSoftwareCostPerServer}
+                            onChange={(value) => handleFormChange('annualSoftwareCostPerServer', value)}
                         />
                    </Form.Item>
                 </Col>

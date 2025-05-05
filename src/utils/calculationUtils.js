@@ -1,27 +1,55 @@
 /**
  * Расчет требуемого количества GPU
- * @param {Object} calcInputData - Данные формы (с эффективными токенами)
+ * @param {Object} calcInputData - Данные формы (с учетом % агентских запросов и батчинга)
  * @returns {number} - Количество GPU
  */
 export const calcRequiredGpu = (calcInputData) => {
-    // Используем userLoadTokensPerRequest из calcInputData, который уже учитывает работу агентов
-    const { userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, modelParamsTokensPerSecPerGpu } = calcInputData;
+    const { 
+        userLoadConcurrentUsers,
+        userLoadTokensPerRequest, // Это уже "эффективные" токены, рассчитанные в хуке
+        userLoadResponseTimeSec, 
+        modelParamsTokensPerSecPerGpu, // Это уже с учетом батчинга
+        isAgentModeEnabled, 
+        agentRequestPercentage,
+        avgAgentsPerTask,
+        avgLlmCallsPerAgent,
+        avgAgentLlmTokens
+     } = calcInputData;
     
-    // Общая требуемая производительность в токенах/сек
-    const totalTokensPerSec = safeDivide(userLoadConcurrentUsers * userLoadTokensPerRequest, userLoadResponseTimeSec);
-    // Требуемое количество GPU
-    const numGpu = safeDivide(totalTokensPerSec, modelParamsTokensPerSecPerGpu);
+    const U = userLoadConcurrentUsers;
+    const R = userLoadResponseTimeSec;
+    const P_agent = isAgentModeEnabled ? (agentRequestPercentage || 0) / 100 : 0; 
+    const T_simple = userLoadTokensPerRequest; // Токены для простого запроса
+    
+    let totalTokensPerSecRequired = 0;
+
+    // Расчет нагрузки для агентского режима (если включен и % > 0)
+    if (P_agent > 0) {
+        const T_agent_internal = avgAgentsPerTask * avgLlmCallsPerAgent * avgAgentLlmTokens;
+        const T_agent_final = T_simple; // Финальный ответ считаем таким же
+        const T_agent_effective = T_agent_internal + T_agent_final;
+        
+        const tokensAgentUsers = safeDivide(U * P_agent * T_agent_effective, R);
+        totalTokensPerSecRequired += tokensAgentUsers;
+    }
+
+    // Расчет нагрузки для пользователей с простыми запросами
+    const tokensSimpleUsers = safeDivide(U * (1 - P_agent) * T_simple, R);
+    totalTokensPerSecRequired += tokensSimpleUsers;
+
+    // Расчет GPU
+    const numGpu = safeDivide(totalTokensPerSecRequired, modelParamsTokensPerSecPerGpu);
     
     return Math.ceil(numGpu);
-  };
+};
   
-  /**
-   * Расчет капитальных затрат (CapEx) - Базовая часть (GPU + Серверы)
-   * @param {number} numGpu - Количество GPU
-   * @param {Object} formData - Данные формы
-   * @returns {Object} - Результат расчета базового CapEx
-   */
-  export const calcCapex = (numGpu, formData) => {
+/**
+ * Расчет капитальных затрат (CapEx) - Базовая часть (GPU + Серверы)
+ * @param {number} numGpu - Количество GPU
+ * @param {Object} formData - Данные формы
+ * @returns {Object} - Результат расчета базового CapEx
+ */
+export const calcCapex = (numGpu, formData) => {
     const { gpuConfigCostUsd, serverConfigNumGpuPerServer, serverConfigCostUsd } = formData;
     
     const numServers = Math.ceil(numGpu / serverConfigNumGpuPerServer);
@@ -35,13 +63,13 @@ export const calcRequiredGpu = (calcInputData) => {
       totalGpuCost,
       totalServerCost
     };
-  };
+};
   
-  /**
-   * Расчет операционных затрат (OpEx)
-   * Включает энергию, обслуживание, внешние инструменты и ПО
-   */
-  export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost) => {
+/**
+ * Расчет операционных затрат (OpEx)
+ * Включает энергию, обслуживание, внешние инструменты и ПО
+ */
+export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost) => {
     const { 
       gpuConfigPowerKw, 
       serverConfigPowerOverheadKw, 
@@ -70,13 +98,13 @@ export const calcRequiredGpu = (calcInputData) => {
       annualExternalToolCost: annualExternalToolCost ?? 0,
       annualSoftwareCost // Возвращаем стоимость ПО для отображения
     };
-  };
+};
   
-  /**
-   * Расчет требований к хранилищу
-   * Использует storageCostPerGB из formData
-   */
-  export const calcStorageRequirements = (formData, serversRequired) => {
+/**
+ * Расчет требований к хранилищу
+ * Использует storageCostPerGB из formData
+ */
+export const calcStorageRequirements = (formData, serversRequired) => {
     const { modelParamsNumBillion, modelParamsBitsPrecision, storageCostPerGB } = formData;
     const modelSizeGB = safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
     const recommendedStoragePerModel = modelSizeGB * 3;
@@ -90,13 +118,13 @@ export const calcRequiredGpu = (calcInputData) => {
       totalStorageGB,
       storageCostUsd
     };
-  };
+};
   
-  /**
-   * Расчет требований к сетевой инфраструктуре
-   * Использует networkCostPerPort из formData
-   */
-  export const calcNetworkRequirements = (serversRequired, requiredGpu, formData) => { // Принимаем formData
+/**
+ * Расчет требований к сетевой инфраструктуре
+ * Использует networkCostPerPort из formData
+ */
+export const calcNetworkRequirements = (serversRequired, requiredGpu, formData) => { // Принимаем formData
     const { networkCostPerPort, networkType } = formData; // Получаем стоимость порта и тип сети
     
     // Логика определения типа сети остается в хуке, здесь только считаем стоимость
@@ -111,13 +139,13 @@ export const calcRequiredGpu = (calcInputData) => {
       numPorts,
       networkEquipmentCost
     };
-  };
+};
   
-  /**
-   * Расчет требований к оперативной памяти
-   * Использует ramCostPerGB из formData
-   */
-  export const calcRamRequirements = (formData, serversRequired) => {
+/**
+ * Расчет требований к оперативной памяти
+ * Использует ramCostPerGB из formData
+ */
+export const calcRamRequirements = (formData, serversRequired) => {
     const { gpuConfigVramGb, serverConfigNumGpuPerServer, ramCostPerGB } = formData;
     const recommendedRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0) * 2.5;
     const minRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0);
@@ -129,10 +157,10 @@ export const calcRequiredGpu = (calcInputData) => {
       ramCostPerServer,
       totalRamCost: ramCostPerServer * (serversRequired ?? 0)
     };
-  };
+};
 
-  // Вспомогательная функция для безопасного деления
-  const safeDivide = (numerator, denominator) => {
+// Вспомогательная функция для безопасного деления
+const safeDivide = (numerator, denominator) => {
     if (denominator === 0 || !denominator || isNaN(denominator)) return 0;
     return numerator / denominator;
-  };
+};
