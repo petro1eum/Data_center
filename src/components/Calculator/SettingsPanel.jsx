@@ -25,10 +25,11 @@ const { Text, Paragraph, Title } = Typography;
 
 // Функция для преобразования пресетов в формат options для Select
 const createOptions = (presets) => {
-  return Object.entries(presets).map(([key, { name, recommended }]) => ({ 
+  return Object.entries(presets).map(([key, { name, recommended, supports_tool_calls }]) => ({ 
     value: key, 
     label: name, 
-    recommended: !!recommended // Добавляем флаг
+    recommended: !!recommended, 
+    supports_tool_calls: !!supports_tool_calls
   }));
 };
 
@@ -85,13 +86,18 @@ const SettingsPanel = ({
     }
   };
 
+  const handleAgentModeChange = (checked) => {
+    handleFormChange('isAgentModeEnabled', checked);
+  };
+
   const cardHeadStyle = { backgroundColor: '#fafafa', borderBottom: '1px solid #f0f0f0' };
 
   // Функция для рендеринга опции с иконкой
   const renderOption = (option) => (
-    <Space size="small">
-      {option.data.label}
-      {option.data.recommended && <StarFilled style={{ color: '#faad14' }} />} 
+    <Space size={4}> 
+      <span>{option.data.label}</span>
+      {option.data.recommended && <StarFilled style={{ color: '#faad14', fontSize: '12px' }} />} 
+      {option.data.supports_tool_calls && <ToolOutlined style={{ color: '#1890ff', fontSize: '12px' }} />}
     </Space>
   );
 
@@ -119,7 +125,7 @@ const SettingsPanel = ({
               options={modelOptions}
               optionRender={renderOption}
               filterOption={(input, option) => 
-                option.label.toLowerCase().includes(input.toLowerCase())
+                (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
               }
             />
           </Form.Item>
@@ -240,7 +246,7 @@ const SettingsPanel = ({
                   options={gpuOptions}
                   optionRender={renderOption}
                   filterOption={(input, option) => 
-                    option.label.toLowerCase().includes(input.toLowerCase())
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
                 />
               </Form.Item>
@@ -262,7 +268,7 @@ const SettingsPanel = ({
                   options={serverOptions}
                   optionRender={renderOption}
                   filterOption={(input, option) => 
-                    option.label.toLowerCase().includes(input.toLowerCase())
+                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
                   }
                 />
               </Form.Item>
@@ -419,30 +425,53 @@ const SettingsPanel = ({
     <Space direction="vertical" size="middle" style={{ width: '100%', padding: '16px 0' }}>
        <Card title={<><SlidersOutlined style={{ marginRight: 8 }} /> Настройки Мультиагентного Режима</>} size="small" hoverable styles={{ header: cardHeadStyle }}>
             <Form layout="vertical">
-                <Tooltip title={agentSwitchTooltip} placement="right"> 
-                    {/* Оборачиваем Form.Item и Switch в div, чтобы Tooltip работал на disabled элементе */}
-                    <div style={{ display: 'inline-block', cursor: isAgentSwitchDisabled ? 'not-allowed' : 'pointer' }}>
-                        <Form.Item 
-                            label="Включить расчет для мультиагентных систем" 
-                            valuePropName="checked" 
-                            style={{ marginBottom: formData.isAgentModeEnabled ? 16 : 0 }} // Убираем отступ если Switch выключен
-                        >
-                            <Switch 
-                                checked={formData.isAgentModeEnabled} 
-                                onChange={(checked) => handleFormChange('isAgentModeEnabled', checked)}
-                                disabled={isAgentSwitchDisabled} // Блокируем, если модель не выбрана или не поддерживает
-                            />
-                        </Form.Item>
-                    </div>
-                 </Tooltip>
+                <Row gutter={16} align="middle">
+                    <Col flex="auto">
+                        <Tooltip title={agentSwitchTooltip} placement="right"> 
+                            <div style={{ display: 'inline-block', cursor: isAgentSwitchDisabled ? 'not-allowed' : 'pointer' }}>
+                                <Form.Item 
+                                    label="Включить расчет для мультиагентных систем" 
+                                    valuePropName="checked" 
+                                    style={{ marginBottom: formData.isAgentModeEnabled ? 16 : 0 }}
+                                >
+                                    <Switch 
+                                        checked={formData.isAgentModeEnabled} 
+                                        onChange={handleAgentModeChange}
+                                        disabled={isAgentSwitchDisabled}
+                                    />
+                                </Form.Item>
+                            </div>
+                        </Tooltip>
+                    </Col>
+                    {formData.isAgentModeEnabled && (
+                        <Col flex="200px">
+                           <Form.Item 
+                                label="% агентских запросов"
+                                tooltip="Какой процент запросов пользователей инициирует мультиагентный workflow?"
+                           >
+                                <InputNumber
+                                    style={{ width: '100%' }}
+                                    min={0}
+                                    max={100}
+                                    step={5}
+                                    formatter={(value) => `${value}%`}
+                                    parser={(value) => value?.replace('%', '') ?? ''}
+                                    name="agentRequestPercentage"
+                                    value={formData.agentRequestPercentage}
+                                    onChange={(value) => handleFormChange('agentRequestPercentage', value)}
+                                />
+                           </Form.Item>
+                        </Col>
+                    )}
+                 </Row>
                  {formData.isAgentModeEnabled && (
                      <> 
-                         <Divider orientation="left" plain><Text type="secondary">Параметры Агентов</Text></Divider>
+                         <Divider orientation="left" plain><Text type="secondary">Параметры Агентов (на одну задачу)</Text></Divider>
                          <Row gutter={16}>
                              <Col xs={24} sm={12}>
                                  <Form.Item 
-                                     label="Среднее кол-во агентов на задачу"
-                                     tooltip="Сколько агентов в среднем участвуют в решении одной задачи пользователя (например, 3 для CEO-Writer-Editor)">
+                                     label="Среднее кол-во агентов"
+                                     tooltip="Сколько агентов в среднем участвуют в решении одной задачи пользователя">
                                     <InputNumber 
                                         style={{ width: '100%'}}
                                         min={1}
@@ -456,7 +485,7 @@ const SettingsPanel = ({
                             <Col xs={24} sm={12}>
                                  <Form.Item 
                                      label="Среднее кол-во вызовов LLM / агент"
-                                     tooltip="Сколько раз каждый агент в среднем обращается к LLM за задачу (планирование, рефлексия, вызов tool, ответ)">
+                                     tooltip="Сколько раз каждый агент в среднем обращается к LLM за задачу">
                                      <InputNumber 
                                          style={{ width: '100%'}}
                                          min={0}
@@ -472,7 +501,7 @@ const SettingsPanel = ({
                               <Col xs={24} sm={12}>
                                  <Form.Item 
                                      label="Среднее кол-во вызовов Tool / агент"
-                                     tooltip="Сколько раз каждый агент в среднем вызывает внешний инструмент (API, поиск и т.д.) за задачу">
+                                     tooltip="Сколько раз каждый агент в среднем вызывает внешний инструмент (API и т.д.)">
                                      <InputNumber 
                                          style={{ width: '100%'}}
                                          min={0}
@@ -486,7 +515,7 @@ const SettingsPanel = ({
                              <Col xs={24} sm={12}>
                                  <Form.Item 
                                      label="Средняя стоимость вызова Tool (USD)"
-                                     tooltip="Примерная стоимость одного вызова внешнего платного инструмента (API и т.п.)">
+                                     tooltip="Примерная стоимость одного вызова внешнего платного инструмента">
                                      <InputNumber 
                                          style={{ width: '100%'}}
                                          min={0}
@@ -503,7 +532,7 @@ const SettingsPanel = ({
                         </Row>
                         <Form.Item 
                              label="Среднее кол-во токенов / вызов LLM агентом"
-                             tooltip="Примерное кол-во токенов (вход+выход) на один внутренний вызов LLM агентом (не финальный ответ пользователю)">
+                             tooltip="Примерное кол-во токенов (вход+выход) на один внутренний вызов LLM">
                              <InputNumber 
                                  style={{ width: '100%'}}
                                  min={0}

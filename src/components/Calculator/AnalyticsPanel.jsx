@@ -15,7 +15,8 @@ import {
   PieChartOutlined,
   DatabaseOutlined,
   ToolOutlined,
-  RetweetOutlined
+  RetweetOutlined,
+  RobotOutlined
 } from '@ant-design/icons';
 
 const { Title, Text, Paragraph } = Typography;

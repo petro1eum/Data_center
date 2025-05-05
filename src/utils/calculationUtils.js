@@ -16,22 +16,22 @@ export const calcRequiredGpu = (calcInputData) => {
   };
   
   /**
-   * Расчет капитальных затрат (CapEx)
+   * Расчет капитальных затрат (CapEx) - Базовая часть (GPU + Серверы)
    * @param {number} numGpu - Количество GPU
    * @param {Object} formData - Данные формы
-   * @returns {Object} - Результат расчета CapEx
+   * @returns {Object} - Результат расчета базового CapEx
    */
   export const calcCapex = (numGpu, formData) => {
     const { gpuConfigCostUsd, serverConfigNumGpuPerServer, serverConfigCostUsd } = formData;
     
     const numServers = Math.ceil(numGpu / serverConfigNumGpuPerServer);
-    const totalGpuCost = numGpu * gpuConfigCostUsd;
-    const totalServerCost = numServers * serverConfigCostUsd;
+    const totalGpuCost = (numGpu ?? 0) * (gpuConfigCostUsd ?? 0);
+    const totalServerCost = (numServers ?? 0) * (serverConfigCostUsd ?? 0);
     
     // Стоимость сети, хранилища и RAM теперь считается отдельно в хуке
     return { 
       totalCost: totalGpuCost + totalServerCost, // Базовый CapEx
-      numServers,
+      numServers: numServers ?? 0,
       totalGpuCost,
       totalServerCost
     };
@@ -54,22 +54,22 @@ export const calcRequiredGpu = (calcInputData) => {
       dcCostsAnnualMaintenanceRate 
     } = calcInputData;
     
-    const totalPowerKw = numGpu * gpuConfigPowerKw + numServers * serverConfigPowerOverheadKw;
-    const annualEnergyKwh = totalPowerKw * 24 * 365 * dcCostsPue;
-    const energyCost = annualEnergyKwh * dcCostsElectricityCostUsdPerKwh;
+    const totalPowerKw = (numGpu ?? 0) * (gpuConfigPowerKw ?? 0) + (numServers ?? 0) * (serverConfigPowerOverheadKw ?? 0);
+    const annualEnergyKwh = totalPowerKw * 24 * 365 * (dcCostsPue ?? 1);
+    const energyCost = annualEnergyKwh * (dcCostsElectricityCostUsdPerKwh ?? 0);
     
     // Пересчитываем базовый CapEx для расчета обслуживания 
     // (или можно передавать totalCapex из хука, но так надежнее, если calcCapex изменится)
     const baseCapexForMaintenance = calcCapex(numGpu, calcInputData).totalCost;
-    const maintenanceCost = baseCapexForMaintenance * dcCostsAnnualMaintenanceRate;
+    const maintenanceCost = baseCapexForMaintenance * (dcCostsAnnualMaintenanceRate ?? 0);
     
     return { 
-      totalOpex: energyCost + maintenanceCost + annualExternalToolCost, // Добавили стоимость инструментов
+      totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0), // Добавили стоимость инструментов
       totalPowerKw, 
       annualEnergyKwh, 
       energyCost, 
       maintenanceCost, 
-      annualExternalToolCost // Возвращаем для информации
+      annualExternalToolCost: annualExternalToolCost ?? 0 // Возвращаем для информации
     };
   };
   
@@ -83,7 +83,7 @@ export const calcRequiredGpu = (calcInputData) => {
     const { modelParamsNumBillion, modelParamsBitsPrecision } = formData;
     
     // Базовый размер модели в ГБ (параметры * биты / 8 / 1024^3)
-    const modelSizeGB = (modelParamsNumBillion * modelParamsBitsPrecision / 8);
+    const modelSizeGB = safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
     
     // С учетом оптимизаций, кэширования, нескольких версий, дополнительных данных
     const recommendedStoragePerModel = modelSizeGB * 3;
@@ -92,7 +92,7 @@ export const calcRequiredGpu = (calcInputData) => {
     const minStoragePerServer = 2000; // 2 ТБ
     
     // Расчет общего требуемого хранилища
-    const totalStorageGB = recommendedStoragePerModel + (serversRequired * minStoragePerServer);
+    const totalStorageGB = recommendedStoragePerModel + (serversRequired ?? 0) * minStoragePerServer;
     
     // Примерная стоимость хранилища ($0.15 за ГБ для высокопроизводительных NVMe SSD)
     const storageCostUsd = totalStorageGB * 0.15;
@@ -116,18 +116,18 @@ export const calcRequiredGpu = (calcInputData) => {
     let networkType = "Ethernet 100G";
     let costPerPort = 500;
     
-    if (requiredGpu > 8) {
+    if ((requiredGpu ?? 0) > 8) {
       networkType = "InfiniBand HDR 200G";
       costPerPort = 2000;
     }
     
-    if (requiredGpu > 32) {
+    if ((requiredGpu ?? 0) > 32) {
       networkType = "InfiniBand NDR 400G";
       costPerPort = 4000;
     }
     
     // Расчет количества портов (2 на сервер для избыточности)
-    const numPorts = serversRequired * 2;
+    const numPorts = (serversRequired ?? 0) * 2;
     
     // Стоимость сетевого оборудования
     const networkEquipmentCost = numPorts * costPerPort;
@@ -149,10 +149,10 @@ export const calcRequiredGpu = (calcInputData) => {
     const { gpuConfigVramGb, serverConfigNumGpuPerServer } = formData;
     
     // Рекомендуемый объем RAM на сервер (в 2-3 раза больше суммарного VRAM)
-    const recommendedRamPerServer = gpuConfigVramGb * serverConfigNumGpuPerServer * 2.5;
+    const recommendedRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0) * 2.5;
     
     // Минимальный объем RAM на сервер
-    const minRamPerServer = gpuConfigVramGb * serverConfigNumGpuPerServer;
+    const minRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0);
     
     // Стоимость RAM (приблизительно $10 за ГБ)
     const ramCostPerServer = recommendedRamPerServer * 10;
@@ -161,12 +161,12 @@ export const calcRequiredGpu = (calcInputData) => {
       minRamPerServer,
       recommendedRamPerServer,
       ramCostPerServer,
-      totalRamCost: ramCostPerServer * serversRequired
+      totalRamCost: ramCostPerServer * (serversRequired ?? 0)
     };
   };
 
-  // Вспомогательная функция для безопасного деления (если ее еще нет)
+  // Вспомогательная функция для безопасного деления
   const safeDivide = (numerator, denominator) => {
-    if (denominator === 0 || !denominator) return 0;
+    if (denominator === 0 || !denominator || isNaN(denominator)) return 0;
     return numerator / denominator;
   };

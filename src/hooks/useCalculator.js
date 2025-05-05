@@ -3,7 +3,6 @@ import { MODEL_PRESETS } from '../data/modelPresets';
 import { GPU_PRESETS } from '../data/gpuPresets';
 import { SERVER_PRESETS } from '../data/serverPresets';
 import { 
-  calcRequiredGpu, 
   calcCapex, 
   calcOpex,
   calcStorageRequirements,
@@ -11,6 +10,12 @@ import {
   calcRamRequirements
 } from '../utils/calculationUtils';
 import { checkModelFitsGpu } from '../utils/validationUtils';
+
+// Вспомогательная функция для безопасного деления
+const safeDivide = (numerator, denominator) => {
+    if (denominator === 0 || !denominator || isNaN(denominator)) return 0;
+    return numerator / denominator;
+};
 
 /**
  * Хук для логики калькулятора
@@ -20,25 +25,25 @@ export const useCalculator = () => {
   // Состояние формы
   const [formData, setFormData] = useState({
     // Параметры модели
-    modelParamsNumBillion: 13,
+    modelParamsNumBillion: 0,
     modelParamsBitsPrecision: 16,
-    modelParamsTokensPerSecPerGpu: 60,
+    modelParamsTokensPerSecPerGpu: 0,
     
     // Нагрузка пользователей
-    userLoadConcurrentUsers: 500,
+    userLoadConcurrentUsers: 100,
     userLoadTokensPerRequest: 100,
     userLoadResponseTimeSec: 2.0,
     
     // GPU конфигурация
-    gpuConfigModel: "NVIDIA A100 80GB",
-    gpuConfigCostUsd: 15000,
-    gpuConfigPowerKw: 0.4,
-    gpuConfigVramGb: 80,
+    gpuConfigModel: "",
+    gpuConfigCostUsd: 0,
+    gpuConfigPowerKw: 0,
+    gpuConfigVramGb: 0,
 
         // Конфигурация сервера
         serverConfigNumGpuPerServer: 8,
-        serverConfigCostUsd: 65000,
-        serverConfigPowerOverheadKw: 1.2,
+        serverConfigCostUsd: 0,
+        serverConfigPowerOverheadKw: 0,
         
         // Стоимость ЦОД
         dcCostsElectricityCostUsdPerKwh: 0.08,
@@ -54,7 +59,8 @@ export const useCalculator = () => {
     avgLlmCallsPerAgent: 5,    // Среднее кол-во вызовов LLM на агента
     avgToolCallsPerAgent: 2,   // Среднее кол-во вызовов инструментов на агента
     avgAgentLlmTokens: 1500,   // Среднее кол-во токенов на внутренний вызов LLM агента
-    avgExternalToolCost: 0.002 // Средняя стоимость вызова внешнего инструмента (USD)
+    avgExternalToolCost: 0.002, // Средняя стоимость вызова внешнего инструмента (USD)
+    agentRequestPercentage: 5 // Устанавливаем 5% по умолчанию
   });
     
       // Состояние результатов
@@ -97,21 +103,26 @@ export const useCalculator = () => {
     
       // Применение пресета модели
       const applyModelPreset = (presetKey) => {
-        if (presetKey) {
+        if (presetKey && MODEL_PRESETS[presetKey]) {
           const preset = MODEL_PRESETS[presetKey];
           setFormData(prev => ({
             ...prev,
             modelParamsNumBillion: preset.params,
             modelParamsTokensPerSecPerGpu: preset.tokensPerSec,
+            isAgentModeEnabled: preset.supports_tool_calls ? prev.isAgentModeEnabled : false 
           }));
           setSelectedModelPreset(presetKey);
           setShowModelInfo(true);
+        } else {
+            setSelectedModelPreset("");
+            setShowModelInfo(false);
+            setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelParamsTokensPerSecPerGpu: 0 }));
         }
       };
     
       // Применение пресета GPU
       const applyGpuPreset = (presetKey) => {
-        if (presetKey) {
+        if (presetKey && GPU_PRESETS[presetKey]) {
           const preset = GPU_PRESETS[presetKey];
           setFormData(prev => ({
             ...prev,
@@ -121,12 +132,15 @@ export const useCalculator = () => {
             gpuConfigVramGb: preset.vram,
           }));
           setSelectedGpuPreset(presetKey);
+        } else {
+            setSelectedGpuPreset("");
+            setFormData(prev => ({ ...prev, gpuConfigModel: "", gpuConfigCostUsd: 0, gpuConfigPowerKw: 0, gpuConfigVramGb: 0 }));
         }
       };
     
       // Применение пресета сервера
       const applyServerPreset = (presetKey) => {
-        if (presetKey) {
+        if (presetKey && SERVER_PRESETS[presetKey]) {
           const preset = SERVER_PRESETS[presetKey];
           setFormData(prev => ({
             ...prev,
@@ -135,13 +149,70 @@ export const useCalculator = () => {
             serverConfigPowerOverheadKw: preset.power,
           }));
           setSelectedServerPreset(presetKey);
+        } else {
+            setSelectedServerPreset("");
+            setFormData(prev => ({ ...prev, serverConfigNumGpuPerServer: 0, serverConfigCostUsd: 0, serverConfigPowerOverheadKw: 0 }));
         }
       };
+    
+      // Применение стандартных пресетов при первой загрузке
+      useEffect(() => {
+        const recommendedModelKey = Object.keys(MODEL_PRESETS).find(key => MODEL_PRESETS[key].recommended);
+        const recommendedGpuKey = Object.keys(GPU_PRESETS).find(key => GPU_PRESETS[key].recommended);
+        const recommendedServerKey = Object.keys(SERVER_PRESETS).find(key => SERVER_PRESETS[key].recommended);
+
+        // Создаем начальный объект данных С УЧЕТОМ БАЗОВОГО СОСТОЯНИЯ
+        let initialFormData = { ...formData }; // Начинаем с базового состояния
+
+        // Применяем пресеты к копии
+        let initialAgentMode = initialFormData.isAgentModeEnabled; // Сохраняем начальное значение (false)
+        if (recommendedModelKey && MODEL_PRESETS[recommendedModelKey]) {
+             const p = MODEL_PRESETS[recommendedModelKey];
+             initialFormData.modelParamsNumBillion = p.params;
+             initialFormData.modelParamsTokensPerSecPerGpu = p.tokensPerSec;
+             // НЕ перезаписываем isAgentModeEnabled здесь, оставляем false по умолчанию
+             // initialAgentMode = p.supports_tool_calls ? initialAgentMode : false; 
+        }
+         if (recommendedGpuKey && GPU_PRESETS[recommendedGpuKey]) {
+             const p = GPU_PRESETS[recommendedGpuKey];
+             initialFormData.gpuConfigModel = p.name;
+             initialFormData.gpuConfigCostUsd = p.cost;
+             initialFormData.gpuConfigPowerKw = p.power;
+             initialFormData.gpuConfigVramGb = p.vram;
+        }
+        if (recommendedServerKey && SERVER_PRESETS[recommendedServerKey]) {
+             const p = SERVER_PRESETS[recommendedServerKey];
+             initialFormData.serverConfigNumGpuPerServer = p.gpuCount;
+             initialFormData.serverConfigCostUsd = p.cost;
+             initialFormData.serverConfigPowerOverheadKw = p.power;
+        }
+        
+        // Устанавливаем isAgentModeEnabled в false окончательно
+        initialFormData.isAgentModeEnabled = false;
+
+        // Устанавливаем state формы с пресетами ОДНИМ ВЫЗОВОМ
+        setFormData(initialFormData);
+        
+        // Устанавливаем ключи выбранных пресетов
+        if(recommendedModelKey) setSelectedModelPreset(recommendedModelKey);
+        if(recommendedGpuKey) setSelectedGpuPreset(recommendedGpuKey);
+        if(recommendedServerKey) setSelectedServerPreset(recommendedServerKey);
+        if(recommendedModelKey) setShowModelInfo(true);
+       
+        // Запускаем расчет и валидацию с явно собранными начальными данными
+        const timer = setTimeout(() => {
+            // Передаем именно initialFormData, который мы собрали
+            calculateResultsBasedOnData(initialFormData);
+            validateFormBasedOnData(initialFormData);
+        }, 0); 
+
+        return () => clearTimeout(timer);
+
+    }, []); // Запускается только при монтировании
     
       // Обновленный обработчик изменений формы
       const handleFormChange = (eOrName, valueOrNil) => {
         let name, value;
-        // Обработка событий от Input/Select или прямого вызова с name/value
         if (typeof eOrName === 'string') {
           name = eOrName;
           value = valueOrNil;
@@ -149,26 +220,46 @@ export const useCalculator = () => {
           name = eOrName.target.name;
           value = eOrName.target.type === 'checkbox' ? eOrName.target.checked : eOrName.target.value;
         }
-
-        // Преобразование в число, если нужно
         let numValue = value;
-        if (typeof value === 'string' && !isNaN(parseFloat(value)) && name !== 'gpuConfigModel' && name !== 'networkType') {
-            if (name === 'modelParamsBitsPrecision' || name === 'avgAgentsPerTask' || name === 'avgLlmCallsPerAgent' || name === 'avgToolCallsPerAgent' || name === 'avgAgentLlmTokens') {
-                 numValue = parseInt(value) || 0; // Целые числа
-            } else if (name !== 'isAgentModeEnabled') { // Не парсить boolean
-                 numValue = parseFloat(value) || 0; // Числа с плавающей точкой
-            }
+        // Преобразуем в число, если это не модель, не тип сети и не булево
+        if (typeof value === 'string' && !isNaN(parseFloat(value)) && name !== 'gpuConfigModel' && name !== 'networkType' && name !== 'isAgentModeEnabled') {
+          // Определяем, нужно ли парсить как Int или Float
+          const intFields = ['modelParamsBitsPrecision', 'avgAgentsPerTask', 'avgLlmCallsPerAgent', 'avgToolCallsPerAgent', 'avgAgentLlmTokens', 'agentRequestPercentage'];
+          if (intFields.includes(name)) {
+            numValue = parseInt(value) || 0;
+          } else {
+            numValue = parseFloat(value) || 0;
+          }
+        }
+        // Обрабатываем булево
+        if (name === 'isAgentModeEnabled') {
+          numValue = Boolean(value);
         }
         
-        // Для boolean (isAgentModeEnabled)
-        if (name === 'isAgentModeEnabled') {
-            numValue = Boolean(value);
-        }
+        setFormData(prev => {
+          const newState = { ...prev, [name]: numValue };
+          
+          // Проверяем поддержку tool calls ТОЛЬКО если включается агентский режим
+          if (name === 'isAgentModeEnabled' && numValue === true) { 
+               let modelKeyToCheck = selectedModelPreset; // Проверяем текущий выбранный пресет
+               const modelSupports = modelKeyToCheck && MODEL_PRESETS[modelKeyToCheck]?.supports_tool_calls;
+               if (!modelSupports) {
+                    // Если пытаемся включить для неподдерживаемой модели, НЕ ДАЕМ этого сделать
+                    console.warn("Attempted to enable agent mode for a model that does not support tool calls.");
+                    return prev; // Возвращаем предыдущее состояние, не меняя isAgentModeEnabled
+               }
+          }
+          
+          // Если меняется модель и агентский режим УЖЕ включен, выключаем его, если новая модель не поддерживает
+           if (name === 'selectedModelPreset' && newState.isAgentModeEnabled) {
+              const newModelSupports = value && MODEL_PRESETS[value]?.supports_tool_calls;
+              if (!newModelSupports) {
+                  newState.isAgentModeEnabled = false;
+              }
+          }
 
-        setFormData(prev => ({
-          ...prev,
-          [name]: numValue
-        }));
+          return newState;
+        });
       };
     
       // Установка коэффициента оптимизации батчинга
@@ -181,88 +272,88 @@ export const useCalculator = () => {
     
       // Обновленная функция расчетов
       const calculateResults = () => {
-        const effectiveTokensPerSecPerGpu = formData.modelParamsTokensPerSecPerGpu * formData.batchingOptimizationFactor;
+        const currentFormData = { ...formData };
 
-        let effectiveTokensPerRequest = formData.userLoadTokensPerRequest;
-        let totalAgentLlmCallsPerTask = 0;
-        let totalToolCallsPerTask = 0;
-        let annualExternalToolCost = 0;
+        const U = currentFormData.userLoadConcurrentUsers;
+        const R = currentFormData.userLoadResponseTimeSec;
+        const P_agent = currentFormData.isAgentModeEnabled ? (currentFormData.agentRequestPercentage || 0) / 100 : 0; // Доля агентских запросов
+        const T_simple = currentFormData.userLoadTokensPerRequest; // Токены простого запроса
+
+        let totalTokensPerSecRequired = 0;
         let totalLlmCallsPerSecond = 0;
         let totalToolCallsPerSecond = 0;
+        let annualExternalToolCost = 0;
 
-        // Расчеты для мультиагентного режима
-        if (formData.isAgentModeEnabled) {
-          totalAgentLlmCallsPerTask = formData.avgAgentsPerTask * formData.avgLlmCallsPerAgent;
-          totalToolCallsPerTask = formData.avgAgentsPerTask * formData.avgToolCallsPerAgent;
-          
-          // Увеличиваем "эффективные" токены за счет работы агентов
-          effectiveTokensPerRequest = (totalAgentLlmCallsPerTask * formData.avgAgentLlmTokens) + formData.userLoadTokensPerRequest;
+        // Расчет нагрузки для агентского режима (если включен и % > 0)
+        if (P_agent > 0) {
+            const T_agent_internal = currentFormData.avgAgentsPerTask * currentFormData.avgLlmCallsPerAgent * currentFormData.avgAgentLlmTokens;
+            const T_agent_final = T_simple; // Пока считаем финальный ответ таким же
+            const T_agent_effective = T_agent_internal + T_agent_final;
+            const Calls_LLM_agent = currentFormData.avgAgentsPerTask * currentFormData.avgLlmCallsPerAgent + 1;
+            const Calls_Tool_agent = currentFormData.avgAgentsPerTask * currentFormData.avgToolCallsPerAgent;
 
-          // Общее количество вызовов LLM и инструментов в секунду по всей системе
-          totalLlmCallsPerSecond = (formData.userLoadConcurrentUsers * (totalAgentLlmCallsPerTask + 1)) / formData.userLoadResponseTimeSec; // +1 за финальный ответ
-          totalToolCallsPerSecond = (formData.userLoadConcurrentUsers * totalToolCallsPerTask) / formData.userLoadResponseTimeSec;
-
-          // Годовая стоимость инструментов
-          annualExternalToolCost = totalToolCallsPerSecond * formData.avgExternalToolCost * 3600 * 24 * 365;
-        } else {
-            // Базовый расчет вызовов LLM для простого чата
-            totalLlmCallsPerSecond = formData.userLoadConcurrentUsers / formData.userLoadResponseTimeSec;
+            // Нагрузка от агентских пользователей
+            const tokensAgentUsers = U * P_agent * T_agent_effective / R;
+            const llmCallsAgentUsers = U * P_agent * Calls_LLM_agent / R;
+            totalToolCallsPerSecond = U * P_agent * Calls_Tool_agent / R;
+            annualExternalToolCost = totalToolCallsPerSecond * currentFormData.avgExternalToolCost * 3600 * 24 * 365;
+            
+            totalTokensPerSecRequired += tokensAgentUsers;
+            totalLlmCallsPerSecond += llmCallsAgentUsers;
         }
 
-        // Создаем данные для передачи в утилиты
-        const calcInputData = {
-          ...formData,
-          modelParamsTokensPerSecPerGpu: effectiveTokensPerSecPerGpu, // Передаем эффективную производительность GPU
-          userLoadTokensPerRequest: effectiveTokensPerRequest // Передаем эффективное кол-во токенов на запрос
-        };
+        // Расчет нагрузки для пользователей с простыми запросами
+        const tokensSimpleUsers = U * (1 - P_agent) * T_simple / R;
+        const llmCallsSimpleUsers = U * (1 - P_agent) / R; // 1 вызов LLM на простой запрос
+        totalTokensPerSecRequired += tokensSimpleUsers;
+        totalLlmCallsPerSecond += llmCallsSimpleUsers;
 
-        const numGpu = calcRequiredGpu(calcInputData); // Используем calcInputData
-        const capexResult = calcCapex(numGpu, calcInputData); // Используем calcInputData
-        
-        // Передаем стоимость инструментов в расчет OpEx
-        const opexResult = calcOpex(numGpu, capexResult.numServers, calcInputData, annualExternalToolCost); 
-        
-        const storageResult = calcStorageRequirements(calcInputData, capexResult.numServers);
+        // Расчет GPU
+        const effectiveTokensPerSecPerGpu = currentFormData.modelParamsTokensPerSecPerGpu * currentFormData.batchingOptimizationFactor;
+        const numGpu = Math.ceil(safeDivide(totalTokensPerSecRequired, effectiveTokensPerSecPerGpu));
+
+        // Расчет остального (CapEx, OpEx, etc.)
+        const capexResult = calcCapex(numGpu, currentFormData);
+        const opexResult = calcOpex(numGpu, capexResult.numServers, currentFormData, annualExternalToolCost);
+        const storageResult = calcStorageRequirements(currentFormData, capexResult.numServers);
         const networkResult = calcNetworkRequirements(capexResult.numServers, numGpu);
-        const ramResult = calcRamRequirements(calcInputData, capexResult.numServers);
+        const ramResult = calcRamRequirements(currentFormData, capexResult.numServers);
         
-        const totalCapex = capexResult.totalCost + 
-                          networkResult.networkEquipmentCost + 
-                          storageResult.storageCostUsd + 
-                          ramResult.totalRamCost;
+        const totalCapex = (capexResult.totalCost ?? 0) + 
+                          (networkResult.networkEquipmentCost ?? 0) + 
+                          (storageResult.storageCostUsd ?? 0) + 
+                          (ramResult.totalRamCost ?? 0);
         
-        // TCO теперь включает стоимость инструментов
-        const fiveYearTcoCalc = totalCapex + (opexResult.totalOpex * 5);
+        const fiveYearTcoCalc = totalCapex + ((opexResult.totalOpex ?? 0) * 5);
 
         setResults({
-          requiredGpu: numGpu,
-          serversRequired: capexResult.numServers,
-          capexUsd: totalCapex,
-          annualOpexUsd: opexResult.totalOpex, // Включает стоимость инструментов
-          powerConsumptionKw: opexResult.totalPowerKw,
-          annualEnergyKwh: opexResult.annualEnergyKwh,
-          energyCostAnnual: opexResult.energyCost,
-          maintenanceCostAnnual: opexResult.maintenanceCost,
-          fiveYearTco: fiveYearTcoCalc, // Обновленный TCO
-          totalGpuCost: capexResult.totalGpuCost,
-          totalServerCost: capexResult.totalServerCost,
-          storageRequirementsGB: storageResult.totalStorageGB,
-          storageCostUsd: storageResult.storageCostUsd,
-          networkType: networkResult.networkType,
-          networkCost: networkResult.networkCost,
-          ramRequirementPerServerGB: ramResult.recommendedRamPerServer,
-          totalRamCost: ramResult.totalRamCost,
-          
-          // Новые результаты
-          annualExternalToolCost: annualExternalToolCost,
-          totalLlmCallsPerSecond: totalLlmCallsPerSecond,
-          totalToolCallsPerSecond: totalToolCallsPerSecond
+          requiredGpu: numGpu ?? 0,
+          serversRequired: capexResult.numServers ?? 0,
+          capexUsd: totalCapex ?? 0,
+          annualOpexUsd: opexResult.totalOpex ?? 0,
+          powerConsumptionKw: opexResult.totalPowerKw ?? 0,
+          annualEnergyKwh: opexResult.annualEnergyKwh ?? 0,
+          energyCostAnnual: opexResult.energyCost ?? 0,
+          maintenanceCostAnnual: opexResult.maintenanceCost ?? 0,
+          fiveYearTco: fiveYearTcoCalc ?? 0,
+          totalGpuCost: capexResult.totalGpuCost ?? 0,
+          totalServerCost: capexResult.totalServerCost ?? 0,
+          storageRequirementsGB: storageResult.totalStorageGB ?? 0,
+          storageCostUsd: storageResult.storageCostUsd ?? 0,
+          networkType: networkResult.networkType || "",
+          networkCost: networkResult.networkEquipmentCost ?? 0,
+          ramRequirementPerServerGB: ramResult.recommendedRamPerServer ?? 0,
+          totalRamCost: ramResult.totalRamCost ?? 0,
+          annualExternalToolCost: annualExternalToolCost ?? 0,
+          totalLlmCallsPerSecond: totalLlmCallsPerSecond ?? 0,
+          totalToolCallsPerSecond: totalToolCallsPerSecond ?? 0
         });
       };
     
       // Проверка ошибок
       const validateForm = () => {
-        const modelFitResult = checkModelFitsGpu(formData);
+        const currentFormData = { ...formData };
+        const modelFitResult = checkModelFitsGpu(currentFormData);
         
         if (modelFitResult.hasError) {
           setModelSizeError(modelFitResult.errorMessage);
@@ -273,10 +364,85 @@ export const useCalculator = () => {
     
       // Запускаем расчеты и валидацию при изменении формы
       useEffect(() => {
-        validateForm();
-        calculateResults();
+        const isInitialRender = !results.capexUsd && !results.annualOpexUsd; // Улучшенная проверка
+        if (!isInitialRender) {
+            validateForm();
+            calculateResults();
+        }
       }, [formData]);
     
+      // Добавляем отдельные функции для вызова с конкретными данными (для инициализации)
+      const calculateResultsBasedOnData = (dataToCalc) => {
+          const U = dataToCalc.userLoadConcurrentUsers;
+          const R = dataToCalc.userLoadResponseTimeSec;
+          const P_agent = dataToCalc.isAgentModeEnabled ? (dataToCalc.agentRequestPercentage || 0) / 100 : 0;
+          const T_simple = dataToCalc.userLoadTokensPerRequest;
+          let totalTokensPerSecRequired = 0;
+          let totalLlmCallsPerSecond = 0;
+          let totalToolCallsPerSecond = 0;
+          let annualExternalToolCost = 0;
+
+          if (P_agent > 0) {
+              const T_agent_internal = dataToCalc.avgAgentsPerTask * dataToCalc.avgLlmCallsPerAgent * dataToCalc.avgAgentLlmTokens;
+              const T_agent_final = T_simple;
+              const T_agent_effective = T_agent_internal + T_agent_final;
+              const Calls_LLM_agent = dataToCalc.avgAgentsPerTask * dataToCalc.avgLlmCallsPerAgent + 1;
+              const Calls_Tool_agent = dataToCalc.avgAgentsPerTask * dataToCalc.avgToolCallsPerAgent;
+              const tokensAgentUsers = U * P_agent * T_agent_effective / R;
+              const llmCallsAgentUsers = U * P_agent * Calls_LLM_agent / R;
+              totalToolCallsPerSecond = U * P_agent * Calls_Tool_agent / R;
+              annualExternalToolCost = totalToolCallsPerSecond * dataToCalc.avgExternalToolCost * 3600 * 24 * 365;
+              totalTokensPerSecRequired += tokensAgentUsers;
+              totalLlmCallsPerSecond += llmCallsAgentUsers;
+          }
+          const tokensSimpleUsers = U * (1 - P_agent) * T_simple / R;
+          const llmCallsSimpleUsers = U * (1 - P_agent) / R;
+          totalTokensPerSecRequired += tokensSimpleUsers;
+          totalLlmCallsPerSecond += llmCallsSimpleUsers;
+
+          const effectiveTokensPerSecPerGpu = dataToCalc.modelParamsTokensPerSecPerGpu * dataToCalc.batchingOptimizationFactor;
+          const numGpu = Math.ceil(safeDivide(totalTokensPerSecRequired, effectiveTokensPerSecPerGpu));
+
+          const capexResult = calcCapex(numGpu, dataToCalc);
+          const opexResult = calcOpex(numGpu, capexResult.numServers, dataToCalc, annualExternalToolCost);
+          const storageResult = calcStorageRequirements(dataToCalc, capexResult.numServers);
+          const networkResult = calcNetworkRequirements(capexResult.numServers, numGpu);
+          const ramResult = calcRamRequirements(dataToCalc, capexResult.numServers);
+          const totalCapex = (capexResult.totalCost ?? 0) + (networkResult.networkEquipmentCost ?? 0) + (storageResult.storageCostUsd ?? 0) + (ramResult.totalRamCost ?? 0);
+          const fiveYearTcoCalc = totalCapex + ((opexResult.totalOpex ?? 0) * 5);
+          setResults({
+            requiredGpu: numGpu ?? 0,
+            serversRequired: capexResult.numServers ?? 0,
+            capexUsd: totalCapex ?? 0,
+            annualOpexUsd: opexResult.totalOpex ?? 0,
+            powerConsumptionKw: opexResult.totalPowerKw ?? 0,
+            annualEnergyKwh: opexResult.annualEnergyKwh ?? 0,
+            energyCostAnnual: opexResult.energyCost ?? 0,
+            maintenanceCostAnnual: opexResult.maintenanceCost ?? 0,
+            fiveYearTco: fiveYearTcoCalc ?? 0,
+            totalGpuCost: capexResult.totalGpuCost ?? 0,
+            totalServerCost: capexResult.totalServerCost ?? 0,
+            storageRequirementsGB: storageResult.totalStorageGB ?? 0,
+            storageCostUsd: storageResult.storageCostUsd ?? 0,
+            networkType: networkResult.networkType || "",
+            networkCost: networkResult.networkEquipmentCost ?? 0,
+            ramRequirementPerServerGB: ramResult.recommendedRamPerServer ?? 0,
+            totalRamCost: ramResult.totalRamCost ?? 0,
+            annualExternalToolCost: annualExternalToolCost ?? 0,
+            totalLlmCallsPerSecond: totalLlmCallsPerSecond ?? 0,
+            totalToolCallsPerSecond: totalToolCallsPerSecond ?? 0
+          });
+      };
+
+      const validateFormBasedOnData = (dataToValidate) => {
+          const modelFitResult = checkModelFitsGpu(dataToValidate);
+           if (modelFitResult.hasError) {
+               setModelSizeError(modelFitResult.errorMessage);
+           } else {
+               setModelSizeError("");
+           }
+      };
+
       return {
         formData,
         results,
