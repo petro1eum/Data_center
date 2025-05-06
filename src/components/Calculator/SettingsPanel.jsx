@@ -187,20 +187,6 @@ const SettingsPanel = ({
             </Col>
           </Row>
           
-          <Form.Item 
-                label="Производительность (токенов/с на GPU)"
-            tooltip={{ title: 'Сколько токенов в секунду генерирует один GPU для этой модели', icon: <InfoCircleOutlined /> }}
-          >
-            <InputNumber 
-               style={{ width: '100%'}}
-               min={0}
-                name="modelParamsTokensPerSecPerGpu"
-                value={formData.modelParamsTokensPerSecPerGpu}
-              onChange={(value) => handleFormChange('modelParamsTokensPerSecPerGpu', value)}
-              prefix={<DashboardOutlined style={{ color: 'rgba(0,0,0,.25)' }} />}
-            />
-          </Form.Item>
-          
           <Form.Item label="Коэффициент оптимизации батчинга">
             <Select
               value={String(formData.batchingOptimizationFactor)} 

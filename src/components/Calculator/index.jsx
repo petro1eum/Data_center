@@ -27,6 +27,11 @@ const GenAIDataCenterCalculator = () => {
                     formData={calculator.formData}
                     modelSizeError={calculator.modelSizeError}
                     configWarnings={calculator.configWarnings}
+                    performanceWarning={calculator.performanceWarning}
+                    findCheapestHardwareConfig={calculator.findCheapestHardwareConfig}
+                    isFindingConfig={calculator.isFindingConfig}
+                    cheapestConfigs={calculator.cheapestConfigs}
+                    findError={calculator.findError}
                   />,
     },
     {

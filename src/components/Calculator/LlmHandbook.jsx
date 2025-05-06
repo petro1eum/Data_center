@@ -140,9 +140,14 @@ const columns = [
         ellipsis: {
             showTitle: false,
         },
-        render: (optimisations) => {
-            if (optimisations === '-') return '-';
-            const optList = optimisations.split(',').map(opt => opt.trim()).filter(opt => opt);
+        render: (optimizations) => {
+            if (!optimizations || (Array.isArray(optimizations) && optimizations.length === 0)) return '-';
+            if (optimizations === '-') return '-';
+
+            const optList = Array.isArray(optimizations)
+                ? optimizations
+                : String(optimizations).split(',').map(opt => opt.trim()).filter(opt => opt);
+
             return (
                 <Space size={[0, 4]} wrap>
                     {optList.map((opt, index) => (

@@ -1,3 +1,5 @@
+import { PERFORMANCE_MATRIX, GPU_RELATIVE_PERFORMANCE } from '../data/performanceData';
+
 /**
  * Расчет требуемого количества GPU
  * @param {Object} calcInputData - Данные формы (с эффективными токенами)
@@ -135,4 +137,65 @@ export const calcRequiredGpu = (calcInputData) => {
   const safeDivide = (numerator, denominator) => {
     if (denominator === 0 || !denominator || isNaN(denominator)) return 0;
     return numerator / denominator;
+  };
+
+  /**
+   * Оценка производительности (tokens/sec/GPU) на основе модели, GPU и точности.
+   * @param {string} modelId - ID модели (например, 'llama3-8b')
+   * @param {string} gpuId - ID GPU (например, 'h100-80gb')
+   * @param {number} precision - Точность (16, 8 или 4)
+   * @returns {Object} - Результат оценки tokens/sec/GPU
+   */
+  export const getEstimatedTokensPerSec = (modelId, gpuId, precision) => {
+    const modelData = PERFORMANCE_MATRIX[modelId];
+    if (!modelData) {
+        // console.warn(`Model not found in performance matrix: ${modelId}`);
+        return { tps: null, estimated: false }; // Модель не найдена
+    }
+
+    const gpuData = modelData[gpuId];
+
+    // 1. Прямой поиск
+    if (gpuData && gpuData[precision] !== undefined && gpuData[precision] !== null) {
+        // Обрабатываем новый и старый форматы данных
+        const perfData = gpuData[precision];
+        if (typeof perfData === 'object' && perfData !== null && perfData.tps !== undefined) {
+            // Новый формат: { tps: value, estimated: bool_flag_maybe? }
+            return { tps: perfData.tps, estimated: !!perfData.estimated };
+        } else if (typeof perfData === 'number') {
+            // Старый формат или новый без флага estimate: число
+            return { tps: perfData, estimated: false }; // Предполагаем, что это прямое измерение
+        }
+    }
+
+    // 2. Попытка оценки на основе относительной производительности
+    const targetGpuFactor = GPU_RELATIVE_PERFORMANCE[gpuId] ?? GPU_RELATIVE_PERFORMANCE['default'];
+    const baseGpusToTry = ['l40s', 'h100-pcie', 'a100-80gb']; // Порядок предпочтения базовых GPU
+
+    for (const baseGpuId of baseGpusToTry) {
+        const baseGpuData = modelData[baseGpuId];
+        if (baseGpuData && baseGpuData[precision] !== undefined && baseGpuData[precision] !== null) {
+            const basePerfData = baseGpuData[precision];
+            let baseTps = null;
+
+            if (typeof basePerfData === 'object' && basePerfData !== null && basePerfData.tps !== undefined) {
+                baseTps = basePerfData.tps;
+            } else if (typeof basePerfData === 'number') {
+                baseTps = basePerfData;
+            }
+
+            if (baseTps !== null && typeof baseTps === 'number' && baseTps > 0) {
+                const baseGpuFactor = GPU_RELATIVE_PERFORMANCE[baseGpuId] ?? GPU_RELATIVE_PERFORMANCE['default'];
+                if (baseGpuFactor > 0) {
+                    const estimatedTps = Math.round(baseTps * (targetGpuFactor / baseGpuFactor));
+                    // console.log(`Estimating ${modelId}/${gpuId}/${precision} based on ${baseGpuId}: ${baseTps} * (${targetGpuFactor}/${baseGpuFactor}) = ${estimatedTps}`);
+                    return { tps: estimatedTps, estimated: true };
+                }
+            }
+        }
+    }
+
+    // 3. Не удалось найти или оценить
+    // console.warn(`Could not find or estimate performance for: ${modelId}, gpu: ${gpuId}, precision: ${precision}`);
+    return { tps: null, estimated: false };
   };

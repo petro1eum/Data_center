@@ -224,5 +224,103 @@ export const MODEL_PRESETS = {
     "moe": "No",
     "optimizations": "Transformer w/ RoPE (YaRN); SwiGLU, RMSNorm, QKV bias; GQA (40Q/8KV); extensive RL fine-tuning (reasoning/tool use)",
     "multimodality": "Text"
-  }
+  },
+  // --- Добавленные модели из Ollama Top-15+ ---
+  'gemma2-9b': {
+    "name": "Gemma 2 9B",
+    "params": 9,
+    "description": "Google Gemma 2 is a high-performing and efficient 9B parameter model.",
+    "optimizations": ["GQA", "KV Cache"],
+    "supports_tool_calls": false, // Assuming standard Gemma 2 doesn't have native tools
+    "recommended": false,
+  },
+  'qwen3-8b': {
+    "name": "Qwen3 8B",
+    "params": 8,
+    "description": "Qwen3 is the latest generation of large language models in Qwen series (8B dense version).",
+    "optimizations": ["GQA", "KV Cache"], // Common practice
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'qwen3-32b': {
+    "name": "Qwen3 32B",
+    "params": 32,
+    "description": "Qwen3 is the latest generation of large language models in Qwen series (32B dense version).",
+    "optimizations": ["GQA", "KV Cache"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'deepseek-r1-7b': {
+    "name": "DeepSeek-R1 7B",
+    "params": 7,
+    "description": "DeepSeek's first-generation of reasoning models (7B) with comparable performance to OpenAI-o1.",
+    "optimizations": ["KV Cache"], // Assuming standard cache
+    "supports_tool_calls": false, // Base model likely no tools
+    "recommended": false,
+  },
+  'deepseek-r1-32b': {
+    "name": "DeepSeek-R1 32B",
+    "params": 32,
+    "description": "DeepSeek's first-generation of reasoning models (32B) with comparable performance to OpenAI-o1.",
+    "optimizations": ["KV Cache"],
+    "supports_tool_calls": false,
+    "recommended": false,
+  },
+  'llama3_3-70b': {
+    "name": "Llama 3.3 70B",
+    "params": 70,
+    "description": "New state of the art 70B model. Llama 3.3 70B offers similar performance compared to the Llama 3.1 405B model.",
+    "optimizations": ["GQA", "KV Cache", "RoPE"], // Inherited from Llama 3
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'phi4-14b': {
+    "name": "Phi-4 14B",
+    "params": 14,
+    "description": "Phi-4 is a 14B parameter, state-of-the-art open model from Microsoft.",
+    "optimizations": ["KV Cache"], // Standard
+    "supports_tool_calls": false,
+    "recommended": false,
+  },
+  'llama3_2-3b': {
+    "name": "Llama 3.2 3B",
+    "params": 3,
+    "description": "Meta's Llama 3.2 goes small with 1B and 3B models.",
+    "optimizations": ["GQA", "KV Cache", "RoPE"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'llama3_1-405b': {
+    "name": "Llama 3.1 405B",
+    "params": 405,
+    "description": "Llama 3.1 is a new state-of-the-art model from Meta available in 8B, 70B and 405B parameter sizes.", // Note: This description is slightly generic from Ollama, we keep the specific one we had before.
+    "optimizations": ["GQA", "KV Cache", "RoPE"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'qwen2_5-7b': {
+    "name": "Qwen 2.5 7B",
+    "params": 7,
+    "description": "Qwen2.5 models are pretrained on Alibaba's latest large-scale dataset, supporting up to 128K tokens.",
+    "optimizations": ["GQA", "KV Cache"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'qwen2_5-32b': {
+    "name": "Qwen 2.5 32B",
+    "params": 32,
+    "description": "Qwen2.5 models are pretrained on Alibaba's latest large-scale dataset, supporting up to 128K tokens.",
+    "optimizations": ["GQA", "KV Cache"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'qwen2_5-coder-7b': {
+    "name": "Qwen 2.5 Coder 7B",
+    "params": 7,
+    "description": "The latest series of Code-Specific Qwen models, with significant improvements in code generation, reasoning, and fixing.",
+    "optimizations": ["GQA", "KV Cache"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  // --- Конец добавленных моделей ---
 }
