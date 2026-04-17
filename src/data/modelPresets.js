@@ -1,50 +1,5 @@
 // Пресеты для популярных моделей
 export const MODEL_PRESETS = {
-  "llama2-7b": {
-    "name": "Llama 2 7B",
-    "params": 7,
-    "tokensPerSec": null,
-    "description": "Llama 2 7B — это открытая базовая языковая модель, выпущенная Meta AI в 2023 году, с 7 миллиардами параметров. Она является частью семейства предобученных и чат-моделей Llama 2, разработанных для демократизации доступа к ИИ. Llama 2 7B предлагает контекстное окно в 4096 токенов, что вдвое больше, чем у LLaMA 1, и была обучена на 40% большем объеме данных, чем LLaMA 1, что улучшило ее знания и согласованность. Однако, как самая маленькая модель в серии, ее производительность уступает более крупным моделям в сложных задачах рассуждения и программирования.",
-    "recommended": false,
-    "supports_tool_calls": false,
-    "developer": "Meta AI",
-    "context": "4096 tokens (4k context)",
-    "contextValue": 4096,
-    "license": "Llama 2 Community License (custom non-OSI license for research & commercial use with some restrictions)",
-    "moe": "No",
-    "optimizations": "RoPE, SwiGLU activation, RMSNorm; full attention (no GQA at 7B scale)",
-    "multimodality": "Text"
-  },
-  "llama2-13b": {
-    "name": "Llama 2 13B",
-    "params": 13,
-    "tokensPerSec": null,
-    "description": "Llama 2 13B — это модель с 13 миллиардами параметров в серии Llama 2 от Meta. Как и вариант 7B, она доступна для бесплатного исследовательского и коммерческого использования и поддерживает контекстное окно в 4096 токенов. Модель 13B обеспечивает лучший баланс возможностей и эффективности, давая более согласованные и точные ответы, чем 7B, во многих задачах. Она была предобучена на том же расширенном корпусе данных, с применением дообучения с подкреплением (reinforcement learning) в чат-версиях для улучшения согласованности. В целом, Llama 2 13B предлагает более сильные возможности рассуждения и программирования, чем 7B, хотя все еще уступает самым большим моделям в очень сложных задачах.",
-    "recommended": false,
-    "supports_tool_calls": false,
-    "developer": "Meta AI",
-    "context": "4096 tokens",
-    "contextValue": 4096,
-    "license": "Llama 2 Community License (Meta's proprietary open license)",
-    "moe": "No",
-    "optimizations": "RoPE, SwiGLU, RMSNorm; no MoE or GQA (dense Transformer architecture)",
-    "multimodality": "Text"
-  },
-  "llama2-70b": {
-    "name": "Llama 2 70B",
-    "params": 70,
-    "tokensPerSec": null,
-    "description": "Llama 2 70B — самая большая модель в семействе Llama 2, с 70 миллиардами параметров. Это была передовая открытая модель 2023 года, достигшая значительно лучших результатов, чем Llama 1, и приближающаяся к уровню производительности GPT-3.5 на многих бенчмарках. Llama 2 70B использует контекстное окно в 4096 токенов и была дообучена с использованием обратной связи от людей для согласованности, что делает ее способной к диалогу. Архитектурно она представила Grouped Query Attention (GQA) для эффективности, как используется в 70B модели Llama 2. Хотя более поздние модели превзошли ее, Llama 2 70B остается мощной моделью с открытым исходным кодом для сложных языковых задач.",
-    "recommended": false,
-    "supports_tool_calls": false,
-    "developer": "Meta AI",
-    "context": "4096 tokens",
-    "contextValue": 4096,
-    "license": "Llama 2 Community License",
-    "moe": "No",
-    "optimizations": "RoPE, SwiGLU, RMSNorm, and GQA (applied at 70B scale for efficiency)",
-    "multimodality": "Text"
-  },
   "llama3-8b": {
     "name": "Llama 3.1 8B",
     "params": 8,
@@ -105,36 +60,6 @@ export const MODEL_PRESETS = {
     "optimizations": "RoPE (32k); MoE arch.; BF16 weights; Mistral 7B Transformer backbone",
     "multimodality": "Text"
   },
-  "qwen-72b": {
-    "name": "Qwen-72B",
-    "params": 72,
-    "tokensPerSec": null,
-    "description": "Qwen-72B — самая большая модель первого поколения открытых LLM Qwen (Tongyi Qianwen) от Alibaba Cloud, представленная в 2023 году. Она содержит ~72.7 млрд параметров и была обучена на ~3 триллионах токенов многоязычных данных (сильно двуязычная англо-китайская). Qwen-72B поддерживает контекстное окно в 32 тыс. токенов с помощью ротационных позиционных эмбеддингов и расширенного предобучения, что позволяет ей обрабатывать длинные входные данные. Она достигла конкурентоспособной производительности по сравнению с современными моделями, такими как Llama 2 70B, GPT-3.5 и даже GPT-4 на некоторых бенчмарках. Примечательно, что Qwen включает встроенные возможности использования инструментов (с системной подсказкой и форматом вызова функций) и была выпущена с разрешительной открытой лицензией в Китае. В целом, Qwen-72B была передовой открытой моделью в конце 2023 года, особенно сильной в китайском языке и многоходовых диалогах.",
-    "recommended": false,
-    "supports_tool_calls": true,
-    "developer": "Alibaba Cloud (DAMO/Qwen Team)",
-    "context": "32000 tokens",
-    "contextValue": 32000,
-    "license": "Tongyi Qianwen Open License (custom Alibaba license)",
-    "moe": "No",
-    "optimizations": "Transformer w/ RoPE (32k), SwiGLU, RMSNorm, GQA (memory efficiency), attention QKV bias",
-    "multimodality": "Text"
-  },
-  "qwen2-72b": {
-    "name": "Qwen2-72B",
-    "params": 72,
-    "tokensPerSec": null,
-    "description": "Qwen 2-72B — это флагманская плотная модель второго поколения серии Qwen от Alibaba (анонсирована в середине 2024 года). Она включает многочисленные улучшения по сравнению с Qwen-1: расширенное многоязычное обучение (данные на 27 дополнительных языках) и значительно улучшенную производительность в кодировании, математике, рассуждении и следовании инструкциям. Модели Qwen2 поддерживают чрезвычайно длинные контекстные окна – базовые модели обучаются на 32 тыс. токенах и демонстрируют экстраполяцию на основе перплексии до ~128 тыс., в то время как выровненные чат-модели явно расширены для обработки входных данных до 128 тыс. токенов. Архитектура Qwen2 использует оптимизации Transformer, такие как SwiGLU и смещение QKV внимания, и применяет Grouped Query Attention ко всем размерам моделей для более быстрого вывода. В целом, Qwen2-72B обычно превосходит большинство открытых моделей своей эпохи и конкурентоспособна с некоторыми проприетарными моделями по широкому спектру бенчмарков.",
-    "recommended": false,
-    "supports_tool_calls": true,
-    "developer": "Alibaba Cloud",
-    "context": "32000 tokens (base pretrained) / 128000 tokens (chat fine-tuned)",
-    "contextValue": 128000,
-    "license": "Tongyi Qianwen License for 72B (Qwen2's smaller models are Apache-2.0)",
-    "moe": "No (a separate MoE variant, 57B-A14B, exists in Qwen2 series)",
-    "optimizations": "RoPE (32k pretrain, 128k w/ YaRN); GQA (all sizes); SwiGLU; RMSNorm; improved multilingual tokenizer",
-    "multimodality": "Text"
-  },
   "qwen2.5-72b": {
     "name": "Qwen2.5-72B",
     "params": 72,
@@ -165,21 +90,6 @@ export const MODEL_PRESETS = {
     "optimizations": "Hybrid reasoning (thinking/fast modes); RoPE w/ YaRN (128k); GQA (64Q/4KV); MoE arch. w/ dynamic routing",
     "multimodality": "Text"
   },
-  "deepseek-67b": {
-    "name": "DeepSeek 67B",
-    "params": 67,
-    "tokensPerSec": null,
-    "description": "DeepSeek 67B — это базовая языковая модель с 67 миллиардами параметров, разработанная Hangzhou DeepSeek AI (Китай) в 2024 году. Она была обучена с нуля на огромном наборе данных в 2 триллиона токенов, включающем как английский, так и китайский текст, с целью создания сильной двуязычной основы. DeepSeek 67B использует архитектуру Transformer, подобную LLaMA, с Grouped-Query Attention (GQA), чтобы обеспечить больший масштаб и более быстрый вывод. В оценках она превосходит Llama 2 70B в сложных математических и кодовых задачах, иллюстрируя преимущества ее высококачественных данных и стабильности обучения. Контекстное окно модели по умолчанию составляет 4096 токенов (с расширенным контекстом до 128 тыс. токенов, доступным в дообученной чат-версии), и она была выпущена с открытыми весами для исследовательского и коммерческого использования.",
-    "recommended": true,
-    "supports_tool_calls": false,
-    "developer": "DeepSeek AI",
-    "context": "4096 tokens (extended up to 128k in DeepSeek-67B-Chat)",
-    "contextValue": 4096,
-    "license": "MIT License (open-weight)",
-    "moe": "No",
-    "optimizations": "GQA (efficiency); RoPE; RMSNorm; FP16/BF16 training",
-    "multimodality": "Text"
-  },
   "deepseek-v3-671b": {
     "name": "DeepSeek-V3 671B",
     "params": 671,
@@ -193,21 +103,6 @@ export const MODEL_PRESETS = {
     "license": "MIT License",
     "moe": "Yes (Sparse MoE model with 671B total params, ~37B active per token)",
     "optimizations": "MHLA (compressed KV); DeepSeekMoE arch. (aux-loss-free routing); FP8 training; multi-token prediction",
-    "multimodality": "Text"
-  },
-  "yi-34b": {
-    "name": "Yi-34B",
-    "params": 34,
-    "tokensPerSec": null,
-    "description": "Yi-34B — это открытая базовая модель с 34 млрд параметров, выпущенная 01.AI (ZeroOne) в 2024 году. Она была предобучена на тщательно отфильтрованном корпусе из 3 триллионов токенов, охватывающем английский и китайский языки, что привело к передовой производительности среди открытых моделей среднего размера (она занимает лидирующие позиции в оценках, таких как MMLU и рассуждениях на основе здравого смысла). Yi-34B основывается на архитектуре LLaMA с несколькими улучшениями: она применяет Grouped Query Attention даже в масштабе 34B (следуя подходу LLaMA 2's 70B approach) для снижения использования памяти без потери производительности и использует функции активации SwiGLU для повышения эффективности обучения. Нативное контекстное окно модели составляет 4096 токенов, но доступна расширенная версия (Yi-34B-200K), поддерживающая контекст до 200 тыс. токенов благодаря продолжению предобучения на длинных последовательностях. Yi-34B выпущена под лицензией Apache 2.0 и быстро стала популярной открытой моделью для исследований в области NLP как на английском, так и на китайском языках.",
-    "recommended": true,
-    "supports_tool_calls": false,
-    "developer": "01.AI (ZeroOne)",
-    "context": "4096 tokens (200k in extended version)",
-    "contextValue": 4096,
-    "license": "Apache 2.0",
-    "moe": "No",
-    "optimizations": "LLaMA Transformer w/ GQA (56Q/8KV); SwiGLU (FFN); RoPE (mod. base freq. for 200k context)",
     "multimodality": "Text"
   },
   "qwq-32b": {
