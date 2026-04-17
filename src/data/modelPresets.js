@@ -322,5 +322,46 @@ export const MODEL_PRESETS = {
     "supports_tool_calls": true,
     "recommended": false,
   },
+  // --- Модели 2026 года ---
+  'deepseek-r1-671b': {
+    "name": "DeepSeek-R1 (671B)",
+    "params": 671,
+    "description": "Флагманская модель рассуждений (reasoning) от DeepSeek. Использует архитектуру MoE (671B всего, ~37B активных). Обеспечивает производительность на уровне лучших закрытых моделей (OpenAI o1) за счёт масштабного RL-обучения.",
+    "optimizations": ["MoE", "MHLA", "DeepSeekMoE", "FP8"],
+    "supports_tool_calls": true,
+    "recommended": true,
+  },
+  'llama4-80b': {
+    "name": "Llama 4 80B",
+    "params": 80,
+    "description": "Базовая и чат-модель 4-го поколения от Meta. Значительные улучшения в логике, размере окна контекста и мультимодальности.",
+    "optimizations": ["GQA", "RoPE", "SwiGLU", "FP8 Native"],
+    "supports_tool_calls": true,
+    "recommended": true,
+  },
+  'llama4-450b': {
+    "name": "Llama 4 450B",
+    "params": 450,
+    "description": "Гигантская модель Meta 4-го поколения. Лучшая в классе Open Source для сложной корпоративной аналитики и агентных систем.",
+    "optimizations": ["GQA", "RoPE", "Pipeline Parallelism", "ZeRO-3"],
+    "supports_tool_calls": true,
+    "recommended": true,
+  },
+  'mistral-large-3': {
+    "name": "Mistral Large 3 (123B)",
+    "params": 123,
+    "description": "Открытая флагманская модель от Mistral. Эффективная архитектура (123B параметров) с огромным окном контекста и высочайшими результатами в кодинге и многоязычности.",
+    "optimizations": ["GQA", "VLLM Ready", "RoPE"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
+  'gemma3-27b': {
+    "name": "Gemma 3 27B",
+    "params": 27,
+    "description": "Новейшая среднеразмерная модель Google. Отлично подходит для локального запуска на 1-2 GPU, показывая уровень моделей 70B+.",
+    "optimizations": ["Sliding Window Attention", "GQA", "RoPE"],
+    "supports_tool_calls": true,
+    "recommended": false,
+  },
   // --- Конец добавленных моделей ---
 }

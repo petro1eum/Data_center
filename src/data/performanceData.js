@@ -274,6 +274,38 @@ export const PERFORMANCE_MATRIX = {
     'h100-80gb': { 16: 375, 8: 600, estimated: true },
     'a100-80gb': { 16: 200, 8: 320, estimated: true },
   },
+  // --- Оценочные данные для новых моделей 2026 года ---
+  'deepseek-r1-671b': {
+    'b200-hbm3e': { 16: null, 8: 140, 4: null, estimated: true },
+    'h100-80gb': { 16: null, 8: 55, 4: null, estimated: true },
+    'h200-141gb': { 16: null, 8: 80, 4: null, estimated: true },
+    'amd-mi300x': { 16: null, 8: 70, 4: null, estimated: true },
+  },
+  'llama4-80b': {
+    'b200-hbm3e': { 16: 1540, 8: 2090, 4: 5320, estimated: true },
+    'h100-80gb': { 16: 640, 8: 1235, 4: 1615, estimated: true },
+    'h200-141gb': { 16: 897, 8: 1710, 4: 2280, estimated: true },
+    'a100-80gb': { 16: null, 8: null, 4: 665, estimated: true },
+  },
+  'llama4-450b': {
+    'b200-hbm3e': { 16: null, 8: 280, 4: null, estimated: true },
+    'h100-80gb': { 16: 14, 8: 25, 4: null, estimated: true },
+    'h200-141gb': { 16: 20, 8: 35, 4: null, estimated: true },
+    'a100-80gb': { 16: null, 8: null, 4: null, estimated: true },
+  },
+  'mistral-large-3': {
+    'b200-hbm3e': { 16: 1000, 8: 1360, 4: 3450, estimated: true },
+    'h100-80gb': { 16: 415, 8: 800, 4: 1050, estimated: true },
+    'h200-141gb': { 16: 580, 8: 1110, 4: 1480, estimated: true },
+    'a100-80gb': { 16: null, 8: null, 4: 430, estimated: true },
+  },
+  'gemma3-27b': {
+    'b200-hbm3e': { 16: 4560, 8: 6200, 4: 15800, estimated: true },
+    'h100-80gb': { 16: 1900, 8: 3660, 4: 4790, estimated: true },
+    'h200-141gb': { 16: 2660, 8: 5120, 4: 6700, estimated: true },
+    'a100-80gb': { 16: 760, 8: 1460, 4: 1910, estimated: true },
+    'l40s-48gb': { 16: 600, 8: 1150, 4: 1510, estimated: true },
+  },
 };
 
 // Относительная производительность GPU (база A100 80GB = 1.0)
