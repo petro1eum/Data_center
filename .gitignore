@@ -61,3 +61,5 @@ private_key*
 public_key*
 ssh_keys/
 
+.vercel
+.env*.local
