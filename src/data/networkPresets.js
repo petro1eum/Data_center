@@ -1,31 +1,38 @@
 // src/data/networkPresets.js
 export const NETWORK_PRESETS = {
-    "eth-100g": { 
-      name: "Ethernet 100GbE", 
-      costPerPort: 500, // Примерная стоимость порта коммутатора
-      type: "Ethernet 100G", 
-      description: "Стандартная высокоскоростная сеть Ethernet, подходит для большинства задач.",
+    "eth-400g": { 
+      name: "Ethernet 400GbE", 
+      costPerPort: 1200,
+      type: "Ethernet 400G", 
+      description: "Базовая сеть для средних AI-кластеров. Подходит для инференса и дата-препроцессинга.",
+      recommended: false 
+    },
+    "eth-800g-spectrum": { 
+      name: "Spectrum-X Ethernet 800GbE", 
+      costPerPort: 2500,
+      type: "Ethernet 800G", 
+      description: "Оптимизированный AI-Ethernet (NVIDIA Spectrum-X) со сверхвысокой пропускной способностью 800G.",
       recommended: true 
     },
-    "ib-hdr-200g": { 
-      name: "InfiniBand HDR 200Gb/s", 
-      costPerPort: 2000,
-      type: "InfiniBand HDR 200G", 
-      description: "Высокопроизводительная сеть с низкой задержкой, идеальна для кластеров > 8 GPU.",
-      recommended: false 
-    },
-     "ib-ndr-400g": { 
+    "ib-ndr-400g": { 
       name: "InfiniBand NDR 400Gb/s", 
-      costPerPort: 4000,
+      costPerPort: 1800,
       type: "InfiniBand NDR 400G", 
-      description: "Сеть последнего поколения для максимальной производительности крупных AI-кластеров (> 32 GPU).",
+      description: "Надёжная сеть предыдущего поколения (Quantum-2) для GPU-кластеров.",
       recommended: false 
     },
-     "eth-400g": { 
-      name: "Ethernet 400GbE", 
-      costPerPort: 3500,
-      type: "Ethernet 400G", 
-      description: "Очень высокая пропускная способность Ethernet для требовательных задач.",
+     "ib-xdr-800g": { 
+      name: "InfiniBand XDR 800Gb/s (Quantum-3)", 
+      costPerPort: 3200,
+      type: "InfiniBand XDR 800G", 
+      description: "Ультра-скоростная сеть последнего поколения (Quantum-3) для распределённого обучения масштаба ЦОД.",
+      recommended: true 
+    },
+    "eth-100g": { 
+      name: "Ethernet 100GbE (Устаревшее)", 
+      costPerPort: 300,
+      type: "Ethernet 100G", 
+      description: "Устаревшая инфраструктура, может стать ciddi узким местом для кластеров.",
       recommended: false 
     },
 }; 

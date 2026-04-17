@@ -1,67 +1,59 @@
-// Пресеты для серверов
+// Пресеты для серверов (Стоимость baremetal платформы БЕЗ учета GPU)
 export const SERVER_PRESETS = {
-    "dell-poweredge-xe9680": { 
-      name: "Dell PowerEdge XE9680 (8xH100)",
-      cost: 85000,
-      power: 1.5,
-      gpuCount: 8, 
-      description: "Сервер 6U для 8xNVIDIA HGX H100 SXM. Идеален для обучения/развертывания LLM. Цена сильно зависит от контракта и региона (в Китае может быть иначе).", 
+    "nvidia-gb200-nvl72": { 
+      name: "NVIDIA GB200 NVL72 Rack",
+      cost: 2500000,
+      power: 120.0,
+      gpuCount: 72, 
+      description: "Стойка NVL72 (36 Grace CPUs, 72 Blackwell GPUs). Монолитный сервер гигантского масштаба с жидкостным охлаждением для терабайтных моделей.", 
       recommended: true 
     },
-    "dell-poweredge-xe8545": { 
-      name: "Dell PowerEdge XE8545", 
-      cost: 45000, 
-      power: 0.9, 
-      gpuCount: 4, 
-      description: "2U сервер с поддержкой 4 GPU NVIDIA A100. Сбалансированное решение для средних AI-проектов и смешанных рабочих нагрузок с хорошим соотношением производительности и стоимости.",
-      recommended: false 
+    "dell-xe9680-b200": { 
+      name: "Dell PowerEdge XE9680 (8x B200 HGX)",
+      cost: 45000,
+      power: 1.8,
+      gpuCount: 8, 
+      description: "Сервер 6U для 8xNVIDIA HGX B200 или MI300X. Необходима инфраструктура воздушного+жидкостного охлаждения.", 
+      recommended: true 
     },
     "hpe-proliant-xd685": { 
-      name: "HPE ProLiant XD685 (8xGPU)",
-      cost: 90000,
+      name: "HPE ProLiant XD685 (8x MI325X)",
+      cost: 48000,
       power: 1.6,
       gpuCount: 8, 
-      description: "Модульный сервер 5U для 8 GPU. Поддержка жидкостного охлаждения. Оптимизирован для NLP/LLM. Цена сильно зависит от контракта и региона.", 
+      description: "Оптимизирован 5U шасси для AMD MI300X/MI325X с жидкостным охлаждением.", 
       recommended: true 
     },
-    "hpe-apollo-6500": { 
-      name: "HPE Apollo 6500", 
-      cost: 65000, 
-      power: 1.2, 
+    "supermicro-sys-821ge": { 
+      name: "Supermicro 8U AI System (8x H200/B200)",
+      cost: 42000,
+      power: 1.5,
       gpuCount: 8, 
-      description: "Высокопроизводительная платформа, спроектированная для GPU-вычислений. Обеспечивает плотное размещение ускорителей для глубокого обучения и научных вычислений с оптимизированным охлаждением.", 
+      description: "Система 8U с максимальным воздушным обдувом для 8 GPU.", 
       recommended: false 
     },
-    "supermicro-sys-421ge": { 
-      name: "Supermicro SYS-421GE (8xGPU)",
-      cost: 70000,
-      power: 1.3,
-      gpuCount: 8, 
-      description: "Система 4U с поддержкой 8 GPU (вкл. HGX B200). Универсальное решение для AI. Цена сильно зависит от конфигурации и региона.", 
-      recommended: true 
-    },
-    "lenovo-thinksystem-sr670": { 
-      name: "Lenovo ThinkSystem SR670", 
-      cost: 55000, 
-      power: 1.0, 
+    "smc-quad-h20": { 
+      name: "Standard 4U (4x PCIe GPU)", 
+      cost: 15000, 
+      power: 0.6, 
       gpuCount: 4, 
-      description: "2U сервер для ускоренных вычислений с гибкой архитектурой, поддерживающий до 8 GPU. Обеспечивает высокую производительность для глубокого обучения и аналитики данных с продуманной системой охлаждения.", 
+      description: "Базовый 4U сервер для PCIe-карт (L40S, H20, A100). Подходит для небольших инференс-кластеров.",
       recommended: false 
     },
-    "standard-4gpu": { 
-      name: "Стандартный 4 GPU", 
-      cost: 30000,
-      power: 0.7, 
+    "lenovo-sr675-v3": { 
+      name: "Lenovo ThinkSystem SR675 V3", 
+      cost: 18000, 
+      power: 0.8, 
       gpuCount: 4, 
-      description: "Базовая серверная конфигурация (4 GPU). Подходит для старта AI-проектов. Цена сильно варьируется, в Китае возможны более дешевые варианты.", 
+      description: "Универсальный сервер для 4x двухслотовых GPU. Отлично подходит для корпоративных приватных моделей.", 
       recommended: false 
     },
     "standard-8gpu": {
-      name: "Стандартный 8 GPU", 
-      cost: 65000,
+      name: "Generic 8x GPU OCP Chassis", 
+      cost: 35000,
       power: 1.2, 
       gpuCount: 8, 
-      description: "Стандартная конфигурация (8 GPU) для интенсивных нагрузок. Цена сильно варьируется, в Китае возможны более дешевые варианты.", 
+      description: "Сборка OCP-стандарта от ODM-производителей (Wistron, Foxconn, Quanta). Экономичный выбор для дата-центров.", 
       recommended: false 
     },
   };
