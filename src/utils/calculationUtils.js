@@ -43,34 +43,35 @@ export const calcRequiredGpu = (calcInputData) => {
    * Расчет операционных затрат (OpEx)
    * Включает энергию, обслуживание, внешние инструменты и ПО
    */
-  export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost) => {
+  export const calcOpex = (numGpu, numServers, calcInputData, annualExternalToolCost, fullCapexForMaintenance) => {
     const { 
       gpuConfigPowerKw, 
       serverConfigPowerOverheadKw, 
       dcCostsElectricityCostUsdPerKwh, 
       dcCostsPue, 
       dcCostsAnnualMaintenanceRate,
-      annualSoftwareCostPerServer // Получаем стоимость ПО из formData
+      annualSoftwareCostPerServer
     } = calcInputData;
     
     const totalPowerKw = (numGpu ?? 0) * (gpuConfigPowerKw ?? 0) + (numServers ?? 0) * (serverConfigPowerOverheadKw ?? 0);
     const annualEnergyKwh = totalPowerKw * 24 * 365 * (dcCostsPue ?? 1);
     const energyCost = annualEnergyKwh * (dcCostsElectricityCostUsdPerKwh ?? 0);
     
-    const baseCapexForMaintenance = calcCapex(numGpu, calcInputData).totalCost;
+    // Если передан полный CapEx (включая сеть, хранилище, RAM) — используем его для расчёта обслуживания,
+    // иначе считаем только от GPU+серверов (обратная совместимость)
+    const baseCapexForMaintenance = fullCapexForMaintenance ?? calcCapex(numGpu, calcInputData).totalCost;
     const maintenanceCost = baseCapexForMaintenance * (dcCostsAnnualMaintenanceRate ?? 0);
     
-    // Рассчитываем годовую стоимость ПО
     const annualSoftwareCost = (numServers ?? 0) * (annualSoftwareCostPerServer ?? 0);
 
     return { 
-      totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0) + annualSoftwareCost, // Добавляем стоимость ПО
+      totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0) + annualSoftwareCost,
       totalPowerKw, 
       annualEnergyKwh, 
       energyCost, 
       maintenanceCost, 
       annualExternalToolCost: annualExternalToolCost ?? 0,
-      annualSoftwareCost // Возвращаем стоимость ПО для отображения
+      annualSoftwareCost
     };
   };
   
@@ -121,8 +122,10 @@ export const calcRequiredGpu = (calcInputData) => {
    */
   export const calcRamRequirements = (formData, serversRequired) => {
     const { gpuConfigVramGb, serverConfigNumGpuPerServer, ramCostPerGB } = formData;
-    const recommendedRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0) * 2.5;
-    const minRamPerServer = (gpuConfigVramGb ?? 0) * (serverConfigNumGpuPerServer ?? 0);
+    // Если VRAM = 0 (например, Groq LPU с SRAM-архитектурой), используем fallback 64GB на слот акселератора
+    const vramForCalc = (gpuConfigVramGb ?? 0) > 0 ? gpuConfigVramGb : 64;
+    const recommendedRamPerServer = vramForCalc * (serverConfigNumGpuPerServer ?? 0) * 2.5;
+    const minRamPerServer = vramForCalc * (serverConfigNumGpuPerServer ?? 0);
     // Используем стоимость из formData
     const ramCostPerServer = recommendedRamPerServer * (ramCostPerGB ?? 10); // 10 как fallback
     return {
@@ -170,7 +173,7 @@ export const calcRequiredGpu = (calcInputData) => {
 
     // 2. Попытка оценки на основе относительной производительности
     const targetGpuFactor = GPU_RELATIVE_PERFORMANCE[gpuId] ?? GPU_RELATIVE_PERFORMANCE['default'];
-    const baseGpusToTry = ['l40s', 'h100-pcie', 'a100-80gb']; // Порядок предпочтения базовых GPU
+    const baseGpusToTry = ['l40s-48gb', 'h100-80gb', 'a100-80gb']; // Порядок предпочтения базовых GPU
 
     for (const baseGpuId of baseGpusToTry) {
         const baseGpuData = modelData[baseGpuId];

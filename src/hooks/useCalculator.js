@@ -189,7 +189,9 @@ const calculateConfigurationRating = (
         userLoadTokensPerRequest = 0,
         avgAgentsPerTask = 0,
         avgLlmCallsPerAgent = 0,
-        avgAgentLlmTokens = 0
+        avgToolCallsPerAgent = 0,
+        avgAgentLlmTokens = 0,
+        avgExternalToolCost = 0
      } = formData;
      const precision = modelParamsBitsPrecision;
 
@@ -576,11 +578,12 @@ const performFullCalculation = (configData) => {
 
     const capexResult = calcCapex(numGpu, tempFormDataForCalc);
     const serversRequired = capexResult.numServers;
-    const opexResult = calcOpex(numGpu, serversRequired, tempFormDataForCalc, annualExternalToolCost);
     const storageResult = calcStorageRequirements(tempFormDataForCalc, serversRequired);
     const networkResult = calcNetworkRequirements(serversRequired, numGpu, tempFormDataForCalc);
     const ramResult = calcRamRequirements(tempFormDataForCalc, serversRequired);
     const totalCapex = (capexResult.totalCost ?? 0) + (networkResult.networkEquipmentCost ?? 0) + (storageResult.storageCostUsd ?? 0) + (ramResult.totalRamCost ?? 0);
+    // Передаём полный CapEx в calcOpex для расчёта обслуживания от всей инфраструктуры
+    const opexResult = calcOpex(numGpu, serversRequired, tempFormDataForCalc, annualExternalToolCost, totalCapex);
     const fiveYearTcoCalc = totalCapex + ((opexResult.totalOpex ?? 0) * 5);
     
     const intermediateResults = {

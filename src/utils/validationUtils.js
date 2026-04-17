@@ -6,6 +6,11 @@
 export const checkModelFitsGpu = (formData) => {
     const { modelParamsNumBillion, modelParamsBitsPrecision, gpuConfigVramGb } = formData;
     
+    // GPU с нестандартной архитектурой памяти (например, Groq LPU с SRAM) — пропускаем проверку VRAM
+    if (!gpuConfigVramGb || gpuConfigVramGb <= 0) {
+      return { hasError: false, errorMessage: "", requiredGbPerGpu: 0 };
+    }
+    
     // Формула: (параметры * байт_на_параметр) * коэффициент_накладных_расходов
     const bytesPerParam = modelParamsBitsPrecision / 8;
     const requiredGbPerGpu = (modelParamsNumBillion * bytesPerParam * 1.2) / 1;  // 1.2 - коэффициент накладных расходов
