@@ -138,11 +138,11 @@ export const GPU_PRESETS = {
       recommended: false 
     },
     "ibm-spyre-accelerator": { 
-      name: "IBM Spyre Accelerator", 
+      name: "IBM LinuxONE (Telum II & Spyre)", 
       cost: 15000, 
       power: 0.15, 
-      vram: 32, 
-      description: "Высокоплотный ИИ-ускоритель от IBM, оптимизированный для серверов LinuxONE и мэйнфреймов (zSystems). Создан для энергоэффективного инференса LLM непосредственно в бизнес-транзакциях.", 
+      vram: 64, 
+      description: "Олицетворение энтерпрайз ИИ-решения от IBM – встроенный накристальный ускоритель Telum II и карты Spyre для серверов LinuxONE / zSystems. Нулевое перемещение данных (Zero Trust) и экстремальная энергоэффективность для бизнес-транзакций.", 
       recommended: false 
     },
   };
