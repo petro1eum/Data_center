@@ -137,4 +137,12 @@ export const GPU_PRESETS = {
       description: "Специализированный AI-ускоритель от Google, оптимизированный для TensorFlow и JAX. Обеспечивает высокую эффективность в задачах машинного обучения.", 
       recommended: false 
     },
+    "ibm-spyre-accelerator": { 
+      name: "IBM Spyre Accelerator", 
+      cost: 15000, 
+      power: 0.15, 
+      vram: 32, 
+      description: "Высокоплотный ИИ-ускоритель от IBM, оптимизированный для серверов LinuxONE и мэйнфреймов (zSystems). Создан для энергоэффективного инференса LLM непосредственно в бизнес-транзакциях.", 
+      recommended: false 
+    },
   };

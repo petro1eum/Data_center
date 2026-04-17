@@ -56,4 +56,12 @@ export const SERVER_PRESETS = {
       description: "Сборка OCP-стандарта от ODM-производителей (Wistron, Foxconn, Quanta). Экономичный выбор для дата-центров.", 
       recommended: false 
     },
+    "ibm-linuxone-4-express": {
+      name: "IBM LinuxONE 4 Express", 
+      cost: 135000,
+      power: 2.5, 
+      gpuCount: 8, 
+      description: "Энтерпрайз-класс Linux сервер (на базе мэйнфрейма zSystems). Идеален для консолидации и запуска ИИ (Spyre) внутри безопасного периметра без выноса данных (Zero Trust). Базовая цена без учёта ускорителей.", 
+      recommended: false 
+    },
   };

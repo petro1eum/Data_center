@@ -329,5 +329,6 @@ export const GPU_RELATIVE_PERFORMANCE = {
   'biren-br100': 0.7,
   'via-big-island': 0.15,
   'groq-lpu': 0.5,
+  'ibm-spyre-accelerator': 0.85,
   'default': 0.3
 };
