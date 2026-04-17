@@ -63,3 +63,6 @@ ssh_keys/
 
 .vercel
 .env*.local
+
+dist
+dist/
