@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Tabs, Form, Input, InputNumber, Select, Row, Col, Typography, Alert, Tooltip, Space, Switch, Divider } from 'antd';
+import { Card, Tabs, Form, Input, InputNumber, Select, Row, Col, Typography, Alert, Tooltip, Space, Switch, Divider, Statistic, Segmented } from 'antd';
 import { 
   InfoCircleOutlined, 
   DatabaseOutlined, // Модель
@@ -26,6 +26,7 @@ import { NETWORK_PRESETS } from '../../data/networkPresets';
 import { STORAGE_PRESETS } from '../../data/storagePresets';
 import { RAM_PRESETS } from '../../data/ramPresets';
 import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
+import { CLOUD_PROVIDERS } from '../../data/cloudPresets';
 
 const { Option } = Select;
 const { Text, Paragraph, Title } = Typography;
@@ -236,6 +237,34 @@ const SettingsPanel = ({
                    onChange={(value) => handleFormChange('userLoadResponseTimeSec', value)}
                 />
               </Form.Item>
+              <Form.Item
+                label="Режим расчёта GPU"
+                tooltip="Minimum deploy — 1 реплика / model card floor. Production — масштаб под пользователей и агентов."
+              >
+                <Segmented
+                  value={formData.gpuCountMode ?? 'production'}
+                  onChange={(value) => handleFormChange('gpuCountMode', value)}
+                  options={[
+                    { label: 'Production', value: 'production' },
+                    { label: 'Min deploy', value: 'minimum' },
+                  ]}
+                  block
+                />
+              </Form.Item>
+              <Form.Item
+                label="Режим throughput"
+                tooltip="On-prem peak — vLLM batch на dedicated GPU. Cloud API — median OpenRouter (AA @ 10K ctx). CapEx всегда по on-prem."
+              >
+                <Segmented
+                  value={formData.performanceMode ?? 'onprem_peak'}
+                  onChange={(value) => handleFormChange('performanceMode', value)}
+                  options={[
+                    { label: 'On-prem peak', value: 'onprem_peak' },
+                    { label: 'Cloud API (OR)', value: 'cloud_api' },
+                  ]}
+                  block
+                />
+              </Form.Item>
             </Form>
           </Card>
         </Col>
@@ -280,7 +309,21 @@ const SettingsPanel = ({
               {selectedServerPreset && SERVER_PRESETS[selectedServerPreset]?.description && (
                 <Alert
                   message="Информация о сервере"
-                  description={SERVER_PRESETS[selectedServerPreset]?.description}
+                  description={
+                    <>
+                      {SERVER_PRESETS[selectedServerPreset]?.description}
+                      {formData.serverPricingMode === 'turnkey' && (
+                        <Paragraph style={{ marginTop: 8, marginBottom: 0 }} type="warning">
+                          Turnkey: CapEx = цена ноды × кол-во нод (GPU включены, отдельная стоимость GPU не суммируется).
+                        </Paragraph>
+                      )}
+                      {formData.serverPricingMode === 'rack' && (
+                        <Paragraph style={{ marginTop: 8, marginBottom: 0 }} type="warning">
+                          Rack-as-unit: покупка целых rack (NVL72). GPU count округляется до {SERVER_PRESETS[selectedServerPreset]?.gpuCount} GPU/rack.
+                        </Paragraph>
+                      )}
+                    </>
+                  }
                   type="info"
                   showIcon
                   style={{ marginBottom: 16 }}
@@ -344,7 +387,13 @@ const SettingsPanel = ({
                    onChange={(value) => handleFormChange('serverConfigNumGpuPerServer', value)}
                  />
                </Form.Item>
-               <Form.Item label="Стоимость сервера без GPU (USD)">
+               <Form.Item label={
+                 formData.serverPricingMode === 'turnkey'
+                   ? 'Стоимость полной ноды (USD)'
+                   : formData.serverPricingMode === 'rack'
+                     ? 'Стоимость rack (USD)'
+                     : 'Стоимость сервера без GPU (USD)'
+               }>
                  <InputNumber 
                     style={{ width: '100%'}}
                     min={0}
@@ -543,6 +592,20 @@ const SettingsPanel = ({
                        onChange={(value) => handleFormChange('dcCostsAnnualMaintenanceRate', (value || 0) / 100)}
                      />
                     </Form.Item>
+                </Col>
+             </Row>
+             <Row gutter={16}>
+                <Col xs={24} sm={12}>
+                  <Form.Item label="Cloud benchmark (провайдер)" tooltip="GPU rental (Lambda/CoreWeave) или OpenRouter API ($/M tokens)">
+                    <Select
+                      value={formData.cloudProviderId ?? 'lambda'}
+                      onChange={(value) => handleFormChange('cloudProviderId', value)}
+                      options={Object.entries(CLOUD_PROVIDERS).map(([key, p]) => ({
+                        value: key,
+                        label: p.name,
+                      }))}
+                    />
+                  </Form.Item>
                 </Col>
              </Row>
           </Form>

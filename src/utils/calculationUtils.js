@@ -1,4 +1,5 @@
 import { PERFORMANCE_MATRIX, GPU_RELATIVE_PERFORMANCE } from '../data/performanceData';
+import { getCloudApiThroughput } from '../data/openRouterBenchmarks';
 
 /**
  * Расчет требуемого количества GPU
@@ -18,24 +19,52 @@ export const calcRequiredGpu = (calcInputData) => {
   };
   
   /**
-   * Расчет капитальных затрат (CapEx) - Базовая часть (GPU + Серверы)
-   * @param {number} numGpu - Количество GPU
-   * @param {Object} formData - Данные формы
-   * @returns {Object} - Результат расчета базового CapEx
+   * CapEx: barebone (GPU×N + chassis×M) | turnkey (node×M) | rack (rack×M, GPU включены)
    */
   export const calcCapex = (numGpu, formData) => {
-    const { gpuConfigCostUsd, serverConfigNumGpuPerServer, serverConfigCostUsd } = formData;
-    
-    const numServers = Math.ceil(numGpu / serverConfigNumGpuPerServer);
+    const {
+      gpuConfigCostUsd,
+      serverConfigNumGpuPerServer,
+      serverConfigCostUsd,
+      serverPricingMode = 'barebone',
+    } = formData;
+
+    const slots = serverConfigNumGpuPerServer || 1;
+
+    if (serverPricingMode === 'rack') {
+      const numRacks = Math.max(1, Math.ceil(numGpu / slots));
+      const totalServerCost = numRacks * (serverConfigCostUsd ?? 0);
+      return {
+        totalCost: totalServerCost,
+        numServers: numRacks,
+        totalGpuCost: 0,
+        totalServerCost,
+        pricingMode: 'rack',
+      };
+    }
+
+    if (serverPricingMode === 'turnkey') {
+      const numNodes = Math.ceil(numGpu / slots);
+      const totalServerCost = numNodes * (serverConfigCostUsd ?? 0);
+      return {
+        totalCost: totalServerCost,
+        numServers: numNodes,
+        totalGpuCost: 0,
+        totalServerCost,
+        pricingMode: 'turnkey',
+      };
+    }
+
+    const numServers = Math.ceil(numGpu / slots);
     const totalGpuCost = (numGpu ?? 0) * (gpuConfigCostUsd ?? 0);
     const totalServerCost = (numServers ?? 0) * (serverConfigCostUsd ?? 0);
-    
-    // Стоимость сети, хранилища и RAM теперь считается отдельно в хуке
-    return { 
-      totalCost: totalGpuCost + totalServerCost, // Базовый CapEx
+
+    return {
+      totalCost: totalGpuCost + totalServerCost,
       numServers: numServers ?? 0,
       totalGpuCost,
-      totalServerCost
+      totalServerCost,
+      pricingMode: 'barebone',
     };
   };
   
@@ -47,22 +76,31 @@ export const calcRequiredGpu = (calcInputData) => {
     const { 
       gpuConfigPowerKw, 
       serverConfigPowerOverheadKw, 
+      serverPricingMode = 'barebone',
+      serverTotalPowerKw,
       dcCostsElectricityCostUsdPerKwh, 
       dcCostsPue, 
       dcCostsAnnualMaintenanceRate,
-      annualSoftwareCostPerServer
+      annualSoftwareCostPerServer,
+      annualSoftwareCostPerGpu,
     } = calcInputData;
-    
-    const totalPowerKw = (numGpu ?? 0) * (gpuConfigPowerKw ?? 0) + (numServers ?? 0) * (serverConfigPowerOverheadKw ?? 0);
+
+    let totalPowerKw;
+    if (serverPricingMode === 'turnkey' || serverPricingMode === 'rack') {
+      const unitPower = serverTotalPowerKw ?? serverConfigPowerOverheadKw ?? 0;
+      totalPowerKw = (numServers ?? 0) * unitPower;
+    } else {
+      totalPowerKw = (numGpu ?? 0) * (gpuConfigPowerKw ?? 0) + (numServers ?? 0) * (serverConfigPowerOverheadKw ?? 0);
+    }
     const annualEnergyKwh = totalPowerKw * 24 * 365 * (dcCostsPue ?? 1);
     const energyCost = annualEnergyKwh * (dcCostsElectricityCostUsdPerKwh ?? 0);
     
-    // Если передан полный CapEx (включая сеть, хранилище, RAM) — используем его для расчёта обслуживания,
-    // иначе считаем только от GPU+серверов (обратная совместимость)
     const baseCapexForMaintenance = fullCapexForMaintenance ?? calcCapex(numGpu, calcInputData).totalCost;
     const maintenanceCost = baseCapexForMaintenance * (dcCostsAnnualMaintenanceRate ?? 0);
     
-    const annualSoftwareCost = (numServers ?? 0) * (annualSoftwareCostPerServer ?? 0);
+    const annualSoftwareCost =
+      (numServers ?? 0) * (annualSoftwareCostPerServer ?? 0) +
+      (numGpu ?? 0) * (annualSoftwareCostPerGpu ?? 0);
 
     return { 
       totalOpex: energyCost + maintenanceCost + (annualExternalToolCost ?? 0) + annualSoftwareCost,
@@ -80,13 +118,15 @@ export const calcRequiredGpu = (calcInputData) => {
    * Использует storageCostPerGB из formData
    */
   export const calcStorageRequirements = (formData, serversRequired) => {
-    const { modelParamsNumBillion, modelParamsBitsPrecision, storageCostPerGB } = formData;
-    const modelSizeGB = safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
+    const { modelParamsNumBillion, modelParamsBitsPrecision, storageCostPerGB, checkpointSizeGb, deployVramGb } = formData;
+    const modelSizeGB = checkpointSizeGb
+      ?? (deployVramGb && deployVramGb > 0 ? deployVramGb * 1.05 : null)
+      ?? safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
     const recommendedStoragePerModel = modelSizeGB * 3;
     const minStoragePerServer = 2000; 
     const totalStorageGB = recommendedStoragePerModel + ((serversRequired ?? 0) * minStoragePerServer);
     // Используем стоимость из formData
-    const storageCostUsd = totalStorageGB * (storageCostPerGB ?? 0.15); // 0.15 как fallback
+    const storageCostUsd = totalStorageGB * (storageCostPerGB ?? 0.17);
     return {
       modelSizeGB,
       recommendedStoragePerModel,
@@ -107,7 +147,7 @@ export const calcRequiredGpu = (calcInputData) => {
     // Используем более сложную логику - по 2 порта на сервер + порты на свитчах для связи серверов?
     // Упрощенно: считаем стоимость портов только на серверах
     const numPorts = (serversRequired ?? 0) * 2; 
-    const networkEquipmentCost = numPorts * (networkCostPerPort ?? 500); // 500 как fallback
+    const networkEquipmentCost = numPorts * (networkCostPerPort ?? 2100);
     
     return {
       // networkType теперь берется из formData в хуке
@@ -127,7 +167,7 @@ export const calcRequiredGpu = (calcInputData) => {
     const recommendedRamPerServer = vramForCalc * (serverConfigNumGpuPerServer ?? 0) * 2.5;
     const minRamPerServer = vramForCalc * (serverConfigNumGpuPerServer ?? 0);
     // Используем стоимость из formData
-    const ramCostPerServer = recommendedRamPerServer * (ramCostPerGB ?? 10); // 10 как fallback
+    const ramCostPerServer = recommendedRamPerServer * (ramCostPerGB ?? 9);
     return {
       minRamPerServer,
       recommendedRamPerServer,
@@ -143,13 +183,28 @@ export const calcRequiredGpu = (calcInputData) => {
   };
 
   /**
-   * Оценка производительности (tokens/sec/GPU) на основе модели, GPU и точности.
-   * @param {string} modelId - ID модели (например, 'llama3-8b')
-   * @param {string} gpuId - ID GPU (например, 'h100-80gb')
-   * @param {number} precision - Точность (16, 8 или 4)
-   * @returns {Object} - Результат оценки tokens/sec/GPU
+   * Оценка производительности (tokens/sec).
+   * @param {string} modelId
+   * @param {string} gpuId
+   * @param {number} precision - 16, 8 или 4
+   * @param {{ performanceMode?: 'onprem_peak'|'cloud_api' }} options
    */
-  export const getEstimatedTokensPerSec = (modelId, gpuId, precision) => {
+  export const getEstimatedTokensPerSec = (modelId, gpuId, precision, options = {}) => {
+    const { performanceMode = 'onprem_peak' } = options;
+
+    if (performanceMode === 'cloud_api') {
+      const cloud = getCloudApiThroughput(modelId);
+      if (cloud?.median) {
+        return {
+          tps: cloud.median,
+          estimated: !!cloud.estimated,
+          source: 'cloud_api',
+          cloudBest: cloud.best,
+          cloudProvider: cloud.provider,
+        };
+      }
+    }
+
     const modelData = PERFORMANCE_MATRIX[modelId];
     if (!modelData) {
         // console.warn(`Model not found in performance matrix: ${modelId}`);
@@ -164,16 +219,27 @@ export const calcRequiredGpu = (calcInputData) => {
         const perfData = gpuData[precision];
         if (typeof perfData === 'object' && perfData !== null && perfData.tps !== undefined) {
             // Новый формат: { tps: value, estimated: bool_flag_maybe? }
-            return { tps: perfData.tps, estimated: !!perfData.estimated };
+            return { tps: perfData.tps, estimated: !!perfData.estimated, source: 'onprem_peak' };
         } else if (typeof perfData === 'number') {
-            // Старый формат или новый без флага estimate: число
-            return { tps: perfData, estimated: false }; // Предполагаем, что это прямое измерение
+            return { tps: perfData, estimated: !!gpuData.estimated, source: 'onprem_peak' };
+        }
+    }
+
+    // 1b. MoE-модели часто деплоятся только в FP8/INT — fallback на меньшую точность
+    if (precision === 16 && gpuData) {
+        for (const fallbackPrec of [8, 4]) {
+            const fallback = gpuData[fallbackPrec];
+            if (fallback === undefined || fallback === null) continue;
+            const tps = typeof fallback === 'object' ? fallback.tps : fallback;
+            if (typeof tps === 'number' && tps > 0) {
+                return { tps, estimated: true, source: 'onprem_peak' };
+            }
         }
     }
 
     // 2. Попытка оценки на основе относительной производительности
     const targetGpuFactor = GPU_RELATIVE_PERFORMANCE[gpuId] ?? GPU_RELATIVE_PERFORMANCE['default'];
-    const baseGpusToTry = ['l40s-48gb', 'h100-80gb', 'a100-80gb']; // Порядок предпочтения базовых GPU
+    const baseGpusToTry = ['b200-hbm3e', 'h100-80gb', 'l40s-48gb', 'a100-80gb'];
 
     for (const baseGpuId of baseGpusToTry) {
         const baseGpuData = modelData[baseGpuId];
@@ -192,7 +258,7 @@ export const calcRequiredGpu = (calcInputData) => {
                 if (baseGpuFactor > 0) {
                     const estimatedTps = Math.round(baseTps * (targetGpuFactor / baseGpuFactor));
                     // console.log(`Estimating ${modelId}/${gpuId}/${precision} based on ${baseGpuId}: ${baseTps} * (${targetGpuFactor}/${baseGpuFactor}) = ${estimatedTps}`);
-                    return { tps: estimatedTps, estimated: true };
+                    return { tps: estimatedTps, estimated: true, source: 'onprem_peak' };
                 }
             }
         }
@@ -200,5 +266,80 @@ export const calcRequiredGpu = (calcInputData) => {
 
     // 3. Не удалось найти или оценить
     // console.warn(`Could not find or estimate performance for: ${modelId}, gpu: ${gpuId}, precision: ${precision}`);
-    return { tps: null, estimated: false };
+    return { tps: null, estimated: false, source: null };
   };
+
+/**
+ * OpenRouter API TCO: $/M tokens × годовой объём vs on-prem 5yr.
+ */
+export const calcOpenRouterApiBenchmark = ({
+  annualTokens = 0,
+  blendedUsdPerM = 0,
+  onPremCapex = 0,
+  onPremAnnualOpex = 0,
+}) => {
+  if (!blendedUsdPerM || blendedUsdPerM <= 0) {
+    return {
+      openRouterBlendedPerM: null,
+      openRouterAnnualUsd: null,
+      openRouterFiveYearTco: null,
+      onPremFiveYearTco: null,
+      breakevenMonths: null,
+      cloudSavingsPercent: null,
+    };
+  }
+
+  const tokensM = annualTokens / 1e6;
+  const openRouterAnnualUsd = tokensM * blendedUsdPerM;
+  const openRouterFiveYearTco = openRouterAnnualUsd * 5;
+  const onPremFiveYearTco = (onPremCapex ?? 0) + (onPremAnnualOpex ?? 0) * 5;
+  const monthlyOr = openRouterAnnualUsd / 12;
+  const breakevenMonths = monthlyOr > 0 ? onPremCapex / monthlyOr : null;
+  const cloudSavingsPercent = onPremFiveYearTco > 0
+    ? ((onPremFiveYearTco - openRouterFiveYearTco) / onPremFiveYearTco) * 100
+    : null;
+
+  return {
+    openRouterBlendedPerM: blendedUsdPerM,
+    openRouterAnnualUsd,
+    openRouterFiveYearTco,
+    onPremFiveYearTco,
+    breakevenMonths: Number.isFinite(breakevenMonths) ? breakevenMonths : null,
+    cloudSavingsPercent,
+  };
+};
+
+/**
+ * Cloud TCO benchmark vs on-prem CapEx + OpEx
+ */
+export const calcCloudBenchmark = (numGpu, gpuRatePerHour, onPremCapex, onPremAnnualOpex) => {
+  if (!gpuRatePerHour || !numGpu || numGpu <= 0) {
+    return {
+      cloudGpuRatePerHour: null,
+      cloudAnnualUsd: null,
+      cloudFiveYearTco: null,
+      onPremFiveYearTco: null,
+      breakevenMonths: null,
+      cloudSavingsPercent: null,
+    };
+  }
+
+  const cloudAnnualUsd = numGpu * gpuRatePerHour * 8760;
+  const cloudFiveYearTco = cloudAnnualUsd * 5;
+  const onPremFiveYearTco = (onPremCapex ?? 0) + (onPremAnnualOpex ?? 0) * 5;
+  const breakevenMonths = onPremAnnualOpex > 0
+    ? onPremCapex / (cloudAnnualUsd / 12)
+    : onPremCapex / (cloudAnnualUsd / 12);
+  const cloudSavingsPercent = onPremFiveYearTco > 0
+    ? ((onPremFiveYearTco - cloudFiveYearTco) / onPremFiveYearTco) * 100
+    : null;
+
+  return {
+    cloudGpuRatePerHour: gpuRatePerHour,
+    cloudAnnualUsd,
+    cloudFiveYearTco,
+    onPremFiveYearTco,
+    breakevenMonths: Number.isFinite(breakevenMonths) ? breakevenMonths : null,
+    cloudSavingsPercent,
+  };
+};

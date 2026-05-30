@@ -16,6 +16,7 @@ import {
   InfoCircleOutlined
 } from '@ant-design/icons';
 import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
+import { CLOUD_PROVIDERS } from '../../data/cloudPresets';
 import TcoChart from './TcoChart';
 
 const { Title, Text, Paragraph } = Typography;
@@ -170,7 +171,21 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
     annualExternalToolCost,
     storageRequirementsGB,
     ramRequirementPerServerGB,
-    annualEnergyKwh
+    annualEnergyKwh,
+    productionGpu,
+    minimumDeployGpu,
+    gpuCountMode,
+    gpusPerReplica,
+    gpuCountForThroughput,
+    gpuCountForMemory,
+    modelWeightGb,
+    kvCacheGb,
+    cloudFiveYearTco,
+    cloudAnnualUsd,
+    cloudGpuRatePerHour,
+    breakevenMonths,
+    cloudSavingsPercent,
+    totalTokensPerSecRequired,
   } = results || {}; 
 
   const { 
@@ -180,7 +195,9 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
       selectedSoftwarePreset, 
       isAgentModeEnabled, 
       userLoadConcurrentUsers,
-      dcCostsElectricityCostUsdPerKwh
+      dcCostsElectricityCostUsdPerKwh,
+      serverPricingMode,
+      cloudProviderId,
   } = formData || {};
 
   const cardHeadStyle = { backgroundColor: '#fafafa', borderBottom: '1px solid #f0f0f0' };
@@ -206,11 +223,19 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
                   prefix={<HddOutlined />} // Заменили иконку на HDD для GPU?
                   suffix="GPU"
                   color="#1890ff"
-                  tooltip="Общее количество GPU, необходимое для заданной нагрузки"
+                  tooltip={gpuCountMode === 'minimum'
+                    ? 'Minimum deploy: 1 реплика / model card floor'
+                    : 'Production: масштаб под нагрузку и агентов'}
                   precision={0}
                 >
                   <Text type="secondary">Серверов: </Text><Text strong>{formatNumber(serversRequired)}</Text><br />
-                  <Text type="secondary">Мощность: </Text><Text strong>{`${formatNumber(powerConsumptionKw, 1)} кВт`}</Text>
+                  <Text type="secondary">TP/replica: </Text><Text strong>{gpusPerReplica ?? 1}</Text>
+                  {gpuCountMode === 'production' && minimumDeployGpu != null && minimumDeployGpu !== requiredGpu && (
+                    <><br /><Text type="secondary">Min deploy: </Text><Text strong>{minimumDeployGpu} GPU</Text></>
+                  )}
+                  {gpuCountMode === 'minimum' && productionGpu != null && productionGpu !== requiredGpu && (
+                    <><br /><Text type="secondary">Production scale: </Text><Text strong>{productionGpu} GPU</Text></>
+                  )}
                 </StatCard>
             </Col>
              {/* Стоимость */}
@@ -258,6 +283,47 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
                 </StatCard>
             </Col>
         </Row>
+
+        {(modelWeightGb > 0 || kvCacheGb > 0) && (
+          <Alert
+            type="info"
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={`VRAM: ~${Math.round(modelWeightGb)} GB weights + ~${Number(kvCacheGb).toFixed(1)} GB KV | ${formatNumber(totalTokensPerSecRequired, 0)} tok/s`}
+            description={
+              gpuCountForMemory > gpuCountForThroughput
+                ? `GPU ограничены памятью (${gpuCountForMemory}), не throughput (${gpuCountForThroughput}).`
+                : `Throughput требует ${gpuCountForThroughput ?? '?'} GPU, память — ${gpuCountForMemory ?? '?'} GPU.`
+            }
+          />
+        )}
+
+        {cloudFiveYearTco != null && (
+          <Alert
+            type={cloudFiveYearTco < fiveYearTco ? 'warning' : 'success'}
+            showIcon
+            style={{ marginBottom: 16 }}
+            message={
+              results.isOpenRouterApi
+                ? `Cloud vs On-Prem (OpenRouter API, $${results.openRouterBlendedPerM?.toFixed(3) ?? '?'}/M blended)`
+                : `Cloud vs On-Prem (${CLOUD_PROVIDERS[cloudProviderId]?.name ?? cloudProviderId}, $${cloudGpuRatePerHour}/GPU/hr)`
+            }
+            description={
+              <>
+                Cloud 5yr: <strong>{formatCurrency(cloudFiveYearTco)}</strong> vs On-Prem 5yr: <strong>{formatCurrency(fiveYearTco)}</strong>
+                {results.isOpenRouterApi && results.openRouterProvider && (
+                  <> — провайдер OR: <strong>{results.openRouterProvider}</strong></>
+                )}
+                {breakevenMonths != null && breakevenMonths > 0 && breakevenMonths < 600 && (
+                  <> — breakeven on-prem ~<strong>{Math.round(breakevenMonths)}</strong> мес.</>
+                )}
+                {cloudSavingsPercent != null && (
+                  <> ({cloudSavingsPercent > 0 ? 'cloud дешевле' : 'on-prem дешевле'} на {Math.abs(Math.round(cloudSavingsPercent))}% за 5 лет)</>
+                )}
+              </>
+            }
+          />
+        )}
         
         {/* Рейтинг конфигурации - Убедились, что он здесь */}
         <RatingDisplay rating={configRating} />
@@ -270,8 +336,16 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
           <Col xs={24} md={12}>
             <Title level={5} style={{ fontSize: 16, marginBottom: 12 }}>Капитальные затраты (CapEx):</Title>
             <Descriptions bordered size="small" column={1} styles={{ label: { width: '60%' } }}>
-              <Descriptions.Item label="Стоимость GPU">{formatCurrency(totalGpuCost)}</Descriptions.Item>
-              <Descriptions.Item label="Стоимость серверов (без GPU)">{formatCurrency(totalServerCost)}</Descriptions.Item>
+              <Descriptions.Item label="Стоимость GPU">
+                {serverPricingMode === 'turnkey' || serverPricingMode === 'rack'
+                  ? 'Включено в ноду/rack'
+                  : formatCurrency(totalGpuCost)}
+              </Descriptions.Item>
+              <Descriptions.Item label={
+                serverPricingMode === 'rack' ? 'Стоимость rack' :
+                serverPricingMode === 'turnkey' ? 'Стоимость нод (turnkey)' :
+                'Стоимость серверов (без GPU)'
+              }>{formatCurrency(totalServerCost)}</Descriptions.Item>
               <Descriptions.Item label="Сетевое оборудование">{formatCurrency(networkCost)}</Descriptions.Item>
               <Descriptions.Item label="Хранилище (SSD/NVMe)">{formatCurrency(storageCostUsd)}</Descriptions.Item>
               <Descriptions.Item label="RAM">{formatCurrency(totalRamCost)}</Descriptions.Item>

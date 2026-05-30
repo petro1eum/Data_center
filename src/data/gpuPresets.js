@@ -1,148 +1,132 @@
-// Пресеты для GPU
-// ОБНОВЛЕНО: Апрель 2026 — актуализированы цены и характеристики
+// Пресеты GPU — май 2026
+// Цены: OEM/volume estimates (Thunder Compute, Tech Insider, IntuitionLabs, NVIDIA partners)
 export const GPU_PRESETS = {
-    "a100-80gb": { 
-      name: "NVIDIA A100 80GB", 
-      cost: 9000,
-      power: 0.4, 
-      vram: 80, 
-      description: "Высокопроизводительный GPU для ЦОД, оптимизированный для AI/HPC. 80GB HBM2e, тензорные ядра 3-го поколения, MIG.", 
-      recommended: false 
-    },
-    "a100-40gb": { 
-      name: "NVIDIA A100 40GB", 
-      cost: 6000, 
-      power: 0.4, 
-      vram: 40, 
-      description: "Версия A100 с меньшим объемом памяти, но с теми же возможностями производительности. Более доступное решение для задач, не требующих больших объемов видеопамяти.", 
-      recommended: false 
-    },
-    "h100-80gb": { 
-      name: "NVIDIA H100 80GB", 
-      cost: 27000,
-      power: 0.7, 
-      vram: 80, 
-      description: "Флагманский GPU (Hopper) для AI. Тензорные ядра 4-го поколения, Transformer Engine FP8. До 4x пр-ти A100.", 
-      recommended: true 
-    },
-    "h200-141gb": { 
-      name: "NVIDIA H200", 
-      cost: 35000,
-      power: 0.7,
-      vram: 141, 
-      description: "Обновленный H100 с 141GB HBM3e. Непревзойденная производительность для LLM и HPC.", 
-      recommended: true 
-    },
-    "b200-hbm3e": { 
-      name: "NVIDIA B200", 
-      cost: 32000, 
-      power: 0.8, 
-      vram: 192, 
-      description: "Новейший ускоритель на архитектуре Blackwell с 192GB HBM3e, преемник H200, обеспечивающий значительный прирост энергоэффективности и производительности для генеративного AI.", 
-      recommended: true 
-    },
-    "l40s-48gb": {
-      name: "NVIDIA L40S 48GB", 
-      cost: 9500,
-      power: 0.35,
-      vram: 48, 
-      description: "Универсальный GPU (Ada Lovelace) для AI-инференса, обучения и графики. Эффективнее L40.", 
-      recommended: true
-    },
-    "a800-80gb": { 
-      name: "NVIDIA A800 80GB (China)", 
-      cost: 10000, 
-      power: 0.4, 
-      vram: 80, 
-      description: "Модификация A100 для китайского рынка с ограниченной пропускной способностью межсоединений, соответствующая экспортным ограничениям.", 
-      recommended: false 
-    },
-    "h20-china": { 
-      name: "NVIDIA H20 (China)", 
-      cost: 18000, 
-      power: 0.65, 
-      vram: 96, 
-      description: "Версия GPU серии Hopper для китайского рынка, с уменьшенным количеством ядер CUDA и тензорных ядер, но с увеличенным объемом памяти.", 
-      recommended: false 
-    },
-    "huawei-ascend910b": { 
-      name: "Huawei Ascend 910B", 
-      cost: 12000, 
-      power: 0.35, 
-      vram: 64, 
-      description: "Высокопроизводительный AI-ускоритель от Huawei, специально разработанный для обучения и инференса глубоких нейронных сетей.", 
-      recommended: false 
-    },
-    "huawei-ascend910c": { 
-      name: "Huawei Ascend 910C", 
-      cost: 16000, 
-      power: 0.45, 
-      vram: 96, 
-      description: "Улучшенная версия Ascend 910B с увеличенным объемом памяти и вычислительной мощностью для более сложных AI-моделей.", 
-      recommended: false 
-    },
-    "biren-br100": { 
-      name: "Biren BR100", 
-      cost: 9000, 
-      power: 0.4, 
-      vram: 64, 
-      description: "Китайский GPU высокого класса для центров обработки данных, сопоставимый по характеристикам с NVIDIA A100.", 
-      recommended: false 
-    },
-    "via-big-island": { 
-      name: "Via/Zhaoxin Big Island", 
-      cost: 7000, 
-      power: 0.3, 
-      vram: 32, 
-      description: "GPU для центров обработки данных от китайского производителя Via/Zhaoxin, ориентированный на независимость от западных технологий.", 
-      recommended: false 
-    },
-    "amd-mi300x": { 
-      name: "AMD Instinct MI300X", 
-      cost: 11000,
-      power: 0.75,
-      vram: 192, 
-      description: "Мощный ускоритель AMD с 192GB HBM3 для AI/HPC. Альтернатива NVIDIA для крупных моделей.", 
-      recommended: true 
-    },
-    "amd-mi325x": { 
-      name: "AMD Instinct MI325X", 
-      cost: 14000, 
-      power: 0.55, 
-      vram: 256, 
-      description: "Новейший ускоритель AMD с беспрецедентным объемом памяти HBM3E, идеален для крупнейших языковых моделей и HPC-приложений.", 
-      recommended: false 
-    },
-    "intel-gaudi3": { 
-      name: "Intel Gaudi 3", 
-      cost: 12000, 
-      power: 0.5, 
-      vram: 96, 
-      description: "AI-ускоритель от Intel, специально оптимизированный для обучения и инференса нейронных сетей с отличным соотношением производительность/стоимость.", 
-      recommended: false 
-    },
-    "groq-lpu": { 
-      name: "Groq LPU", 
-      cost: 18000, 
-      power: 0.25, 
-      vram: 0, 
-      description: "Уникальный акселератор на основе SRAM (без традиционного VRAM). Обеспечивает сверхнизкую латентность для инференса генеративных моделей и экстремальную энергоэффективность.", 
-      recommended: false 
-    },
-    "google-tpu-v5p": { 
-      name: "Google TPU v5p", 
-      cost: 20000, 
-      power: 0.65, 
-      vram: 96, 
-      description: "Специализированный AI-ускоритель от Google, оптимизированный для TensorFlow и JAX. Обеспечивает высокую эффективность в задачах машинного обучения.", 
-      recommended: false 
-    },
-    "ibm-spyre-accelerator": { 
-      name: "IBM LinuxONE (Telum II & Spyre)", 
-      cost: 15000, 
-      power: 0.15, 
-      vram: 64, 
-      description: "Олицетворение энтерпрайз ИИ-решения от IBM – встроенный накристальный ускоритель Telum II и карты Spyre для серверов LinuxONE / zSystems. Нулевое перемещение данных (Zero Trust) и экстремальная энергоэффективность для бизнес-транзакций.", 
-      recommended: false 
-    },
-  };
+  "a100-80gb": {
+    name: "NVIDIA A100 80GB",
+    cost: 8000,
+    power: 0.4,
+    vram: 80,
+    description: "Legacy Hopper-pred. $1.20–2.50/GPU-hr cloud. Dev/test, малые модели.",
+    recommended: false,
+  },
+  "h100-80gb": {
+    name: "NVIDIA H100 80GB SXM",
+    cost: 28000,
+    power: 0.7,
+    vram: 80,
+    description: "Hopper SXM. List $25–35K. Cloud $2.00–4.50/GPU-hr. Рабочая лошадка AI-ЦОД.",
+    recommended: true,
+  },
+  "h200-141gb": {
+    name: "NVIDIA H200 141GB",
+    cost: 32000,
+    power: 0.7,
+    vram: 141,
+    description: "141GB HBM3e. ~$31–32K/chip, 8×H200 node ~$315K. Cloud $3.50–6.50/GPU-hr.",
+    recommended: true,
+  },
+  "b200-hbm3e": {
+    name: "NVIDIA B200 192GB",
+    cost: 38000,
+    power: 0.75,
+    vram: 192,
+    description: "Blackwell 192GB HBM3e. $35–45K/chip (volume ~$25–30K). Cloud $2.25–11/GPU-hr.",
+    recommended: true,
+  },
+  "b300-hbm3e": {
+    name: "NVIDIA B300 288GB",
+    cost: 47000,
+    power: 0.85,
+    vram: 288,
+    description: "Blackwell Ultra 288GB. $45–50K/chip. DGX B300 (8×) ~$300–350K. Cloud spot от $2.45/GPU-hr.",
+    recommended: true,
+  },
+  "gb200-grace-blackwell": {
+    name: "NVIDIA GB200 Superchip",
+    cost: 65000,
+    power: 0.9,
+    vram: 192,
+    description: "Grace CPU + 2×B200 via NVLink-C2C. $60–70K/superchip. База NVL72 rack.",
+    recommended: false,
+  },
+  "l40s-48gb": {
+    name: "NVIDIA L40S 48GB",
+    cost: 8200,
+    power: 0.35,
+    vram: 48,
+    description: "Ada Lovelace inference. ~$8.2K. Cost-effective edge/mid-size LLM.",
+    recommended: true,
+  },
+  "a800-80gb": {
+    name: "NVIDIA A800 80GB (China)",
+    cost: 9000,
+    power: 0.4,
+    vram: 80,
+    description: "Export A100 для APAC. Ограниченный NVLink.",
+    recommended: false,
+  },
+  "h20-china": {
+    name: "NVIDIA H20 96GB (China)",
+    cost: 17000,
+    power: 0.65,
+    vram: 96,
+    description: "Hopper для Китая. 96GB HBM, сниженные CUDA cores.",
+    recommended: false,
+  },
+  "amd-mi300x": {
+    name: "AMD Instinct MI300X 192GB",
+    cost: 11000,
+    power: 0.75,
+    vram: 192,
+    description: "192GB HBM3. Cloud $2.50–5/GPU-hr. Альтернатива H200 по памяти/цене.",
+    recommended: true,
+  },
+  "amd-mi325x": {
+    name: "AMD Instinct MI325X 256GB",
+    cost: 14000,
+    power: 0.55,
+    vram: 256,
+    description: "256GB HBM3E. Оптимален для 405B+ MoE без sharding.",
+    recommended: true,
+  },
+  "amd-mi350x": {
+    name: "AMD Instinct MI350X 288GB",
+    cost: 18000,
+    power: 0.6,
+    vram: 288,
+    description: "CDNA 4, 288GB HBM3E. Паритет B300 по памяти.",
+    recommended: false,
+  },
+  "intel-gaudi3": {
+    name: "Intel Gaudi 3 128GB",
+    cost: 12500,
+    power: 0.5,
+    vram: 128,
+    description: "Intel AI accelerator. Хороший TCO при кластерных закупках.",
+    recommended: false,
+  },
+  "groq-lpu": {
+    name: "Groq LPU",
+    cost: 16000,
+    power: 0.22,
+    vram: 0,
+    description: "SRAM LPU, ultra-low latency inference. Без традиционного VRAM.",
+    recommended: false,
+  },
+  "google-tpu-v5p": {
+    name: "Google TPU v5p",
+    cost: 19000,
+    power: 0.6,
+    vram: 96,
+    description: "TPU v5p для JAX/TPU workloads.",
+    recommended: false,
+  },
+  "ibm-spyre-accelerator": {
+    name: "IBM Spyre AI Accelerator",
+    cost: 14000,
+    power: 0.15,
+    vram: 64,
+    description: "Enterprise accelerator для LinuxONE 4 / zSystems.",
+    recommended: false,
+  },
+};

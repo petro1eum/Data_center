@@ -1,67 +1,90 @@
-// Пресеты для серверов (Стоимость baremetal платформы БЕЗ учета GPU)
+// Серверы — май 2026
+// pricingMode: barebone (платформа без GPU) | turnkey (полная нода) | rack (rack-as-unit)
+// Источники: Mercatus, DeployBase, Tech Insider, NVIDIA, Dell/Supermicro
 export const SERVER_PRESETS = {
-    "nvidia-gb200-nvl72": { 
-      name: "NVIDIA GB200 NVL72 Rack",
-      cost: 2500000,
-      power: 120.0,
-      gpuCount: 72, 
-      description: "Стойка NVL72 (36 Grace CPUs, 72 Blackwell GPUs). Монолитный сервер гигантского масштаба с жидкостным охлаждением для терабайтных моделей.", 
-      recommended: true 
-    },
-    "dell-xe9680-b200": { 
-      name: "Dell PowerEdge XE9680 (8x B200 HGX)",
-      cost: 45000,
-      power: 1.8,
-      gpuCount: 8, 
-      description: "Сервер 6U для 8xNVIDIA HGX B200 или MI300X. Необходима инфраструктура воздушного+жидкостного охлаждения.", 
-      recommended: true 
-    },
-    "hpe-proliant-xd685": { 
-      name: "HPE ProLiant XD685 (8x MI325X)",
-      cost: 48000,
-      power: 1.6,
-      gpuCount: 8, 
-      description: "Оптимизирован 5U шасси для AMD MI300X/MI325X с жидкостным охлаждением.", 
-      recommended: true 
-    },
-    "supermicro-sys-821ge": { 
-      name: "Supermicro 8U AI System (8x H200/B200)",
-      cost: 42000,
-      power: 1.5,
-      gpuCount: 8, 
-      description: "Система 8U с максимальным воздушным обдувом для 8 GPU.", 
-      recommended: false 
-    },
-    "smc-quad-h20": { 
-      name: "Standard 4U (4x PCIe GPU)", 
-      cost: 15000, 
-      power: 0.6, 
-      gpuCount: 4, 
-      description: "Базовый 4U сервер для PCIe-карт (L40S, H20, A100). Подходит для небольших инференс-кластеров.",
-      recommended: false 
-    },
-    "lenovo-sr675-v3": { 
-      name: "Lenovo ThinkSystem SR675 V3", 
-      cost: 18000, 
-      power: 0.8, 
-      gpuCount: 4, 
-      description: "Универсальный сервер для 4x двухслотовых GPU. Отлично подходит для корпоративных приватных моделей.", 
-      recommended: false 
-    },
-    "standard-8gpu": {
-      name: "Generic 8x GPU OCP Chassis", 
-      cost: 35000,
-      power: 1.2, 
-      gpuCount: 8, 
-      description: "Сборка OCP-стандарта от ODM-производителей (Wistron, Foxconn, Quanta). Экономичный выбор для дата-центров.", 
-      recommended: false 
-    },
-    "ibm-linuxone-4-express": {
-      name: "IBM LinuxONE 4 Express", 
-      cost: 135000,
-      power: 2.5, 
-      gpuCount: 8, 
-      description: "Энтерпрайз-класс Linux сервер (на базе мэйнфрейма zSystems). Идеален для консолидации и запуска ИИ (Spyre) внутри безопасного периметра без выноса данных (Zero Trust). Базовая цена без учёта ускорителей.", 
-      recommended: false 
-    },
-  };
+  "nvidia-dgx-h100-8x": {
+    name: "NVIDIA DGX H100 (8× turnkey)",
+    cost: 280000,
+    power: 0,
+    totalPowerKw: 10.2,
+    gpuCount: 8,
+    pricingMode: "turnkey",
+    description: "Полная система 8×H100 SXM + NVSwitch + интеграция. Рынок $250–320K (Mercatus, Supermicro eStore).",
+    recommended: false,
+  },
+  "nvidia-dgx-b200-8x": {
+    name: "NVIDIA DGX B200 (8× turnkey)",
+    cost: 300000,
+    power: 0,
+    totalPowerKw: 12.0,
+    gpuCount: 8,
+    pricingMode: "turnkey",
+    description: "8×B200 1.44TB HBM3e, NVLink 5, BlueField-3. Рынок $275–515K (DeployBase, Tech Insider).",
+    recommended: false,
+  },
+  "dell-xe9680-b200": {
+    name: "Dell PowerEdge XE9680 (barebone 8×)",
+    cost: 68000,
+    power: 2.0,
+    gpuCount: 8,
+    pricingMode: "barebone",
+    description: "6U платформа без GPU ~$65–75K. + GPU отдельно. Полная 8×H100 ~$250–350K.",
+    recommended: true,
+  },
+  "nvidia-gb200-nvl72": {
+    name: "NVIDIA GB200 NVL72 Rack",
+    cost: 3000000,
+    power: 0,
+    totalPowerKw: 132.0,
+    gpuCount: 72,
+    pricingMode: "rack",
+    totalGpuVramGb: 13500,
+    description: "Rack-as-unit: 72 B200 + 36 Grace, 13.5 TB HBM, NVLink domain. ~$3–3.5M/rack. Liquid 132 kW.",
+    recommended: false,
+  },
+  "hpe-cray-xd675": {
+    name: "HPE Cray XD675 (8× OAM barebone)",
+    cost: 72000,
+    power: 1.9,
+    gpuCount: 8,
+    pricingMode: "barebone",
+    description: "5U DLC для AMD MI300X/MI325X OAM. Платформа ~$70–80K без GPU.",
+    recommended: false,
+  },
+  "supermicro-sys-821ge": {
+    name: "Supermicro SYS-821GE-TNHR (8× barebone)",
+    cost: 58000,
+    power: 1.6,
+    gpuCount: 8,
+    pricingMode: "barebone",
+    description: "8U GPU SuperServer. Платформа без GPU ~$55–65K.",
+    recommended: false,
+  },
+  "smc-quad-4u": {
+    name: "Supermicro 4U (4× PCIe barebone)",
+    cost: 22000,
+    power: 0.6,
+    gpuCount: 4,
+    pricingMode: "barebone",
+    description: "4U dual-socket для 4× DW GPU. ~$18–25K platform.",
+    recommended: false,
+  },
+  "lenovo-sr675-v3": {
+    name: "Lenovo ThinkSystem SR675 V3 (8× barebone)",
+    cost: 42000,
+    power: 0.85,
+    gpuCount: 8,
+    pricingMode: "barebone",
+    description: "3U Neptune DLC, до 8× DW GPU. Платформа ~$42K.",
+    recommended: false,
+  },
+  "standard-8gpu-ocp": {
+    name: "ODM 8× GPU OCP Chassis (barebone)",
+    cost: 48000,
+    power: 1.3,
+    gpuCount: 8,
+    pricingMode: "barebone",
+    description: "Hyperscale OCP tray ~$45–55K без GPU.",
+    recommended: false,
+  },
+};

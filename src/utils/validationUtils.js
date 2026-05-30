@@ -1,29 +1,74 @@
+import {
+  calcKvCacheGb,
+  calcModelWeightGb,
+  calcMemoryGpuRequirements,
+  calcUserLoadMetrics,
+} from './hardwareRequirements.js';
+
 /**
  * Проверка, помещается ли модель в доступную память GPU
  * @param {Object} formData - Данные формы
  * @returns {Object} - Результат проверки (ошибка если есть)
  */
 export const checkModelFitsGpu = (formData) => {
-    const { modelParamsNumBillion, modelParamsBitsPrecision, gpuConfigVramGb } = formData;
-    
-    // GPU с нестандартной архитектурой памяти (например, Groq LPU с SRAM) — пропускаем проверку VRAM
+    const { modelParamsNumBillion, modelActiveParamsBillion, modelParamsBitsPrecision, gpuConfigVramGb, deployVramGb } = formData;
+
     if (!gpuConfigVramGb || gpuConfigVramGb <= 0) {
-      return { hasError: false, errorMessage: "", requiredGbPerGpu: 0 };
+      return { hasError: false, errorMessage: "", requiredGbPerGpu: 0, gpusPerReplica: 1 };
     }
-    
-    // Формула: (параметры * байт_на_параметр) * коэффициент_накладных_расходов
-    const bytesPerParam = modelParamsBitsPrecision / 8;
-    const requiredGbPerGpu = (modelParamsNumBillion * bytesPerParam * 1.2) / 1;  // 1.2 - коэффициент накладных расходов
-    
-    if (requiredGbPerGpu > gpuConfigVramGb) {
+
+    const loadMetrics = calcUserLoadMetrics(formData);
+    const kvCacheGb = calcKvCacheGb(formData, loadMetrics.avgContextTokensPerSession);
+    const memoryReq = calcMemoryGpuRequirements(formData, kvCacheGb);
+    const weightGb = calcModelWeightGb(formData);
+    const effectiveParamsBillion = modelActiveParamsBillion ?? modelParamsNumBillion;
+    const isMoE = modelActiveParamsBillion && modelActiveParamsBillion < modelParamsNumBillion * 0.9;
+
+    const { gpusPerReplica, vramPerGpuRequired, minGpusForMemory } = memoryReq;
+    const requiredGbPerGpu = vramPerGpuRequired;
+
+    if (gpusPerReplica > 1 && !deployVramGb) {
+      const vramNote = isMoE
+        ? `${modelParamsNumBillion}B всего (${effectiveParamsBillion}B active) @ ${modelParamsBitsPrecision}-bit`
+        : `${modelParamsNumBillion}B @ ${modelParamsBitsPrecision}-bit`;
       return {
-        hasError: true,
-        errorMessage: `Внимание: модель ${modelParamsNumBillion}B с ${modelParamsBitsPrecision}-битной точностью требует ~${requiredGbPerGpu.toFixed(1)} ГБ VRAM, но выбранный GPU имеет только ${gpuConfigVramGb} ГБ. Требуется распределение на несколько GPU или понижение точности.`,
-        requiredGbPerGpu: requiredGbPerGpu
+        hasError: false,
+        errorMessage: "",
+        requiredGbPerGpu,
+        gpusPerReplica,
+        minGpusForMemory,
+        weightGb,
+        kvCacheGb,
+        warningMessage: `Модель (${vramNote}, ~${weightGb.toFixed(0)} GB весов) требует tensor-parallel ≥${gpusPerReplica} GPU × ${gpuConfigVramGb}GB (мин. ${minGpusForMemory} GPU с учётом KV-cache ${kvCacheGb.toFixed(0)} GB).`,
       };
     }
-    
-    return { hasError: false, errorMessage: "", requiredGbPerGpu: requiredGbPerGpu };
+
+    if (requiredGbPerGpu > gpuConfigVramGb) {
+      const vramNote = deployVramGb
+        ? `(квантизированный deploy ~${deployVramGb}GB)`
+        : isMoE
+          ? `(${modelParamsNumBillion}B всего / ${effectiveParamsBillion}B active @ ${modelParamsBitsPrecision}-bit, KV ~${kvCacheGb.toFixed(0)}GB)`
+          : `(${modelParamsNumBillion}B @ ${modelParamsBitsPrecision}-bit, KV ~${kvCacheGb.toFixed(0)}GB)`;
+      return {
+        hasError: true,
+        errorMessage: `Внимание: модель ${vramNote} требует ~${requiredGbPerGpu.toFixed(1)} ГБ VRAM на GPU (мин. ${minGpusForMemory} GPU), но выбранный GPU имеет только ${gpuConfigVramGb} ГБ. Нужен tensor-parallel, другой GPU или более агрессивная квантизация.`,
+        requiredGbPerGpu,
+        gpusPerReplica,
+        minGpusForMemory,
+        weightGb,
+        kvCacheGb,
+      };
+    }
+
+    return {
+      hasError: false,
+      errorMessage: "",
+      requiredGbPerGpu,
+      gpusPerReplica,
+      minGpusForMemory,
+      weightGb,
+      kvCacheGb,
+    };
   };
 
 /**
@@ -34,19 +79,54 @@ export const checkModelFitsGpu = (formData) => {
  */
 export const checkConfigurationWarnings = (formData, results) => {
     const warnings = [];
-    const { requiredGpu } = results;
-    const { networkType, ramType, gpuConfigVramGb, serverConfigNumGpuPerServer } = formData;
-    const { recommendedRamPerServer } = calcRamRequirements(formData, results.serversRequired); // Пересчитываем рек. RAM
+    const {
+        requiredGpu,
+        gpuCountForMemory,
+        gpuCountForThroughput,
+        modelWeightGb,
+        kvCacheGb,
+        gpusPerReplica,
+        totalTokensPerSecRequired,
+        productionGpu,
+        minimumDeployGpu,
+        gpuCountMode,
+    } = results;
+    const { networkType, ramType } = formData;
 
     // Проверка сети
+    const highSpeedNetworks = ['InfiniBand NDR 400G', 'InfiniBand XDR 800G', 'Ethernet 800G'];
     if (requiredGpu > 8 && networkType === 'Ethernet 100G') {
-        warnings.push("Сеть Ethernet 100G может быть узким местом для кластера > 8 GPU. Рекомендуется InfiniBand.");
+        warnings.push("Сеть Ethernet 100G может быть узким местом для кластера > 8 GPU. Рекомендуется InfiniBand XDR 800G или Spectrum-X 800G.");
     }
-    if (requiredGpu > 32 && networkType !== 'InfiniBand NDR 400G') {
-        warnings.push("Для кластера > 32 GPU рекомендуется сеть InfiniBand NDR 400G для оптимальной производительности.");
+    if (requiredGpu > 16 && networkType === 'Ethernet 400G') {
+        warnings.push("Ethernet 400G может быть недостаточен для кластера > 16 GPU при распределённом инференсе. Рассмотрите InfiniBand XDR 800G.");
+    }
+    if (requiredGpu > 32 && !highSpeedNetworks.includes(networkType)) {
+        warnings.push("Для кластера > 32 GPU рекомендуется InfiniBand XDR 800G или Ethernet 800G (Spectrum-X).");
     }
 
-    // Проверка RAM (если посчиталось меньше рекомендуемого - хотя расчет сейчас всегда считает рекомендуемый)
+    if (gpuCountMode === 'minimum' && productionGpu > minimumDeployGpu) {
+        warnings.push(`Режим Min deploy: ${minimumDeployGpu ?? requiredGpu} GPU. Для production-нагрузки потребуется ~${productionGpu} GPU.`);
+    }
+
+    if (gpuCountForMemory > gpuCountForThroughput && requiredGpu > 0) {
+        warnings.push(`Количество GPU (${requiredGpu}) ограничено памятью (веса ~${modelWeightGb?.toFixed(0) ?? '?'} GB + KV-cache ~${kvCacheGb?.toFixed(0) ?? '?'} GB), а не throughput. Tensor-parallel: ${gpusPerReplica ?? '?'} GPU/реплика.`);
+    }
+
+    if (formData.isMultimodal) {
+        warnings.push(
+            "Мультимодальная модель: deploy VRAM включает типичный сценарий (картинка/видео). Длинное видео или batch изображений могут потребовать +20–50% VRAM (см. официальные таблицы Qwen Omni / VL). KV-cache не учитывает все vision-токены."
+        );
+    }
+
+    if (formData.isAgentModeEnabled && (formData.agentRequestPercentage ?? 0) > 0 && requiredGpu > 0) {
+        const simpleGpuEstimate = Math.ceil(requiredGpu / (1 + (formData.agentRequestPercentage / 100) * 10));
+        if (requiredGpu > simpleGpuEstimate * 2) {
+            warnings.push(`Мультиагентный режим (${formData.agentRequestPercentage}% запросов) существенно увеличивает нагрузку (~${totalTokensPerSecRequired?.toFixed(0) ?? '?'} tok/s). Проверьте параметры агентов.`);
+        }
+    }
+
+    // Проверка RAM
     // Можно добавить проверку типа RAM vs тип CPU/платформы, но это сложно без данных о сервере.
     // Пример: если выбран очень старый тип RAM
     if (ramType === 'DDR4' && requiredGpu > 16) { // Условный пример
@@ -59,8 +139,3 @@ export const checkConfigurationWarnings = (formData, results) => {
 
     return warnings;
 };
-
-// Пере импортируем утилиты, чтобы checkConfigurationWarnings могла их использовать
-import { calcRamRequirements } from './calculationUtils';
-// Убедимся, что safeDivide тоже экспортируется или доступна
-// (Она уже должна быть в calculationUtils, но для чистоты можно вынести)

@@ -1,234 +1,127 @@
-// Матрица экстраполированной производительности (tokens/sec) на основе предоставленных данных
-// Источник: Исследование пользователя
-// ОБНОВЛЕНО: Апрель 2026 — унифицированы ключи GPU с gpuPresets.js
-export const PERFORMANCE_MATRIX = {
-  // LLaMA3
-  "llama3-8b": {
-    "a100-80gb": { 16: 2000, 8: 3800, 4: 5000 },
-    "a100-40gb": { 16: 1900, 8: 3610, 4: 4750 },
-    "h100-80gb": { 16: 5000, 8: 9000, 4: 11000 },
-    "h200-141gb": { 16: 7000, 8: 12000, 4: 14000 },
-    "b200-hbm3e": { 16: 12000, 8: 15000, 4: 40000 },
-    "l40s-48gb": { 16: 1400, 8: 2660, 4: 3500 },
-    "a800-80gb": { 16: 1800, 8: 3420, 4: 4500 },
-    "h20-china": { 16: 3600, 8: 7500, 4: 9000 },
-    "amd-mi300x": { 16: 6600, 8: 11000, 4: 13200 },
-    "amd-mi325x": { 16: 8000, 8: 13000, 4: 16000 },
-    "intel-gaudi3": { 16: 4000, 8: 7000, 4: 9500 },
-    "google-tpu-v5p": { 16: 4500, 8: 8500, 4: 10500 },
-  },
-  "llama3-70b": {
-    "a100-80gb": { 16: null, 8: null, 4: 700 },
-    "a100-40gb": { 16: null, 8: null, 4: null },
-    "h100-80gb": { 16: 675, 8: 1300, 4: 1700 },
-    "h200-141gb": { 16: 945, 8: 1800, 4: 2400 },
-    "b200-hbm3e": { 16: 1620, 8: 2200, 4: 5600 },
-    "l40s-48gb": { 16: null, 8: null, 4: null },
-    "a800-80gb": { 16: null, 8: null, 4: 630 },
-    "h20-china": { 16: null, 8: 900, 4: 1260 },
-    "amd-mi300x": { 16: 890, 8: 1600, 4: 2240 },
-    "amd-mi325x": { 16: 1080, 8: 1900, 4: 2720 },
-    "intel-gaudi3": { 16: 500, 8: 1000, 4: 1400 },
-    "google-tpu-v5p": { 16: 600, 8: 1200, 4: 1600 },
-  },
-  // Mixtral
-  "mixtral-8x7b": {
-    "a100-80gb": { 16: 5800, 8: 10000, 4: 12000 },
-    "a100-40gb": { 16: 5510, 8: 9500, 4: 11400 },
-    "h100-80gb": { 16: 14500, 8: 21000, 4: 30000 },
-    "h200-141gb": { 16: 20300, 8: 29000, 4: 42000 },
-    "b200-hbm3e": { 16: 34800, 8: 42000, 4: 96000 },
-    "l40s-48gb": { 16: null, 8: null, 4: null },
-    "a800-80gb": { 16: 5220, 8: 9000, 4: 10800 },
-    "h20-china": { 16: 10440, 8: 18000, 4: 21600 },
-    "amd-mi300x": { 16: 19140, 8: 27000, 4: 39600 },
-    "amd-mi325x": { 16: 23200, 8: 31000, 4: 48000 },
-    "intel-gaudi3": { 16: 11000, 8: 18000, 4: 25000 },
-    "google-tpu-v5p": { 16: 13000, 8: 20000, 4: 28000 },
-  },
-  // Qwen
-  "qwen2.5-72b": {
-    "a100-80gb": { 16: 63, 8: 110, 4: 158 },
-    "a100-40gb": { 16: null, 8: null, 4: null },
-    "h100-80gb": { 16: 158, 8: 280, 4: 395 },
-    "h200-141gb": { 16: 221, 8: 380, 4: 553 },
-    "b200-hbm3e": { 16: 378, 8: 520, 4: 1264 },
-    "l40s-48gb": { 16: null, 8: null, 4: null },
-    "a800-80gb": { 16: 57, 8: 99, 4: 142 },
-    "h20-china": { 16: 113, 8: 240, 4: 284 },
-    "amd-mi300x": { 16: 208, 8: 360, 4: 521 },
-    "amd-mi325x": { 16: 252, 8: 420, 4: 632 },
-    "intel-gaudi3": { 16: 120, 8: 220, 4: 320 },
-    "google-tpu-v5p": { 16: 140, 8: 260, 4: 370 },
-  },
-  "qwen3-235b": {
-    "a100-80gb": { 16: null, 8: null, 4: null },
-    "a100-40gb": { 16: null, 8: null, 4: null },
-    "h100-80gb": { 16: null, 8: 650, 4: null },
-    "h200-141gb": { 16: null, 8: 910, 4: null },
-    "b200-hbm3e": { 16: null, 8: 1200, 4: null },
-    "l40s-48gb": { 16: null, 8: null, 4: null },
-    "a800-80gb": { 16: null, 8: null, 4: null },
-    "h20-china": { 16: null, 8: 450, 4: null },
-    "amd-mi300x": { 16: null, 8: 850, 4: null },
-    "amd-mi325x": { 16: null, 8: 1050, 4: null },
-    "intel-gaudi3": { 16: null, 8: 500, 4: null },
-    "google-tpu-v5p": { 16: null, 8: 600, 4: null },
-  },
-  // DeepSeek
-  "deepseek-v3-671b": {
-    "a100-80gb": { 16: null, 8: null, 4: null },
-    "a100-40gb": { 16: null, 8: null, 4: null },
-    "h100-80gb": { 16: null, 8: 60, 4: null },
-    "h200-141gb": { 16: null, 8: 85, 4: null },
-    "b200-hbm3e": { 16: null, 8: 150, 4: null },
-    "l40s-48gb": { 16: null, 8: null, 4: null },
-    "a800-80gb": { 16: null, 8: null, 4: null },
-    "h20-china": { 16: null, 8: 45, 4: null },
-    "amd-mi300x": { 16: null, 8: 75, 4: null },
-    "amd-mi325x": { 16: null, 8: 95, 4: null },
-    "intel-gaudi3": { 16: null, 8: 50, 4: null },
-    "google-tpu-v5p": { 16: null, 8: 55, 4: null },
-  },
-  // QwQ
-  "qwq-32b": {
-    "a100-80gb": { 16: 12.3, 8: 23, 4: 31 },
-    "a100-40gb": { 16: 11.7, 8: 22, 4: 29 },
-    "h100-80gb": { 16: 31, 8: 55, 4: 78 },
-    "h200-141gb": { 16: 43, 8: 75, 4: 109 },
-    "b200-hbm3e": { 16: 74, 8: 100, 4: 248 },
-    "l40s-48gb": { 16: 8.6, 8: 16, 4: 22 },
-    "a800-80gb": { 16: 11, 8: 21, 4: 28 },
-    "h20-china": { 16: 22, 8: 45, 4: 56 },
-    "amd-mi300x": { 16: 41, 8: 70, 4: 102 },
-    "amd-mi325x": { 16: 49, 8: 85, 4: 124 },
-    "intel-gaudi3": { 16: 25, 8: 45, 4: 65 },
-    "google-tpu-v5p": { 16: 28, 8: 50, 4: 75 },
-  },
+// Матрица производительности (tokens/sec/GPU) — май 2026
+// onprem_peak: vLLM continuous batch, dedicated GPU
+// Источники: vLLM benchmarks, vendor refs, сверка с AA/OpenRouter (×1.5–3 vs cloud median)
 
-  // --- Оценочные данные для дополнительных моделей ---
-  // ВНИМАНИЕ: Значения являются грубыми оценками
-  // Ключи GPU унифицированы с gpuPresets.js (апрель 2026)
-  'gemma2-9b': {
-    'l40s-48gb': { 16: 280, 8: 450, estimated: true },
-    'h100-80gb': { 16: 400, 8: 650, estimated: true },
-    'a100-80gb': { 16: 220, 8: 360, estimated: true },
-  },
-  'qwen3-8b': {
-    'l40s-48gb': { 16: 260, 8: 420, estimated: true },
-    'h100-80gb': { 16: 380, 8: 620, estimated: true },
-    'a100-80gb': { 16: 200, 8: 340, estimated: true },
-  },
-  'qwen3-32b': {
-    'l40s-48gb': { 16: 100, 8: 160, estimated: true },
-    'h100-80gb': { 16: 150, 8: 240, estimated: true },
-    'a100-80gb': { 16: 80, 8: 130, estimated: true },
-  },
-  'deepseek-r1-7b': {
-    'l40s-48gb': { 16: 200, 8: 320, estimated: true },
-    'h100-80gb': { 16: 300, 8: 500, estimated: true },
-    'a100-80gb': { 16: 160, 8: 260, estimated: true },
-  },
-  'deepseek-r1-32b': {
-    'l40s-48gb': { 16: 90, 8: 150, estimated: true },
-    'h100-80gb': { 16: 135, 8: 225, estimated: true },
-    'a100-80gb': { 16: 72, 8: 120, estimated: true },
-  },
-  'llama3_3-70b': {
-    'h100-80gb': { 16: 700, 8: 1350, 4: 1750, estimated: true },
-    'a100-80gb': { 16: null, 8: null, 4: 720, estimated: true },
-  },
-  'phi4-14b': {
-    'l40s-48gb': { 16: 180, 8: 290, estimated: true },
-    'h100-80gb': { 16: 270, 8: 435, estimated: true },
-    'a100-80gb': { 16: 144, 8: 232, estimated: true },
-  },
-  'llama3_2-3b': {
-    'l40s-48gb': { 16: 450, 8: 700, estimated: true },
-    'h100-80gb': { 16: 675, 8: 1050, estimated: true },
-    'a100-80gb': { 16: 360, 8: 560, estimated: true },
-  },
-  'llama3-405b': {
-    // Алиас для основного пресета модели llama3-405b
-    'h100-80gb': { 16: 16, 8: 28, estimated: true },
-    'l40s-48gb': { 16: null, 8: null, 4: null },
-    'a100-80gb': { 16: null, 8: null, 4: null },
-  },
-  'llama3_1-405b': {
-    'h100-80gb': { 16: 16, 8: 28, estimated: true },
-    'l40s-48gb': { 16: null, 8: null, 4: null },
-    'a100-80gb': { 16: null, 8: null, 4: null },
-  },
-  'qwen2_5-7b': {
-    'l40s-48gb': { 16: 250, 8: 400, estimated: true },
-    'h100-80gb': { 16: 375, 8: 600, estimated: true },
-    'a100-80gb': { 16: 200, 8: 320, estimated: true },
-  },
-  'qwen2_5-32b': {
-    'l40s-48gb': { 16: 100, 8: 160, estimated: true },
-    'h100-80gb': { 16: 150, 8: 240, estimated: true },
-    'a100-80gb': { 16: 80, 8: 128, estimated: true },
-  },
-  'qwen2_5-coder-7b': {
-    'l40s-48gb': { 16: 250, 8: 400, estimated: true },
-    'h100-80gb': { 16: 375, 8: 600, estimated: true },
-    'a100-80gb': { 16: 200, 8: 320, estimated: true },
-  },
-  // --- Оценочные данные для новых моделей 2026 года ---
-  'deepseek-r1-671b': {
-    'b200-hbm3e': { 16: null, 8: 140, 4: null, estimated: true },
-    'h100-80gb': { 16: null, 8: 55, 4: null, estimated: true },
-    'h200-141gb': { 16: null, 8: 80, 4: null, estimated: true },
-    'amd-mi300x': { 16: null, 8: 70, 4: null, estimated: true },
-  },
-  'llama4-80b': {
-    'b200-hbm3e': { 16: 1540, 8: 2090, 4: 5320, estimated: true },
-    'h100-80gb': { 16: 640, 8: 1235, 4: 1615, estimated: true },
-    'h200-141gb': { 16: 897, 8: 1710, 4: 2280, estimated: true },
-    'a100-80gb': { 16: null, 8: null, 4: 665, estimated: true },
-  },
-  'llama4-450b': {
-    'b200-hbm3e': { 16: null, 8: 280, 4: null, estimated: true },
-    'h100-80gb': { 16: 14, 8: 25, 4: null, estimated: true },
-    'h200-141gb': { 16: 20, 8: 35, 4: null, estimated: true },
-    'a100-80gb': { 16: null, 8: null, 4: null, estimated: true },
-  },
-  'mistral-large-3': {
-    'b200-hbm3e': { 16: 1000, 8: 1360, 4: 3450, estimated: true },
-    'h100-80gb': { 16: 415, 8: 800, 4: 1050, estimated: true },
-    'h200-141gb': { 16: 580, 8: 1110, 4: 1480, estimated: true },
-    'a100-80gb': { 16: null, 8: null, 4: 430, estimated: true },
-  },
-  'gemma3-27b': {
-    'b200-hbm3e': { 16: 4560, 8: 6200, 4: 15800, estimated: true },
-    'h100-80gb': { 16: 1900, 8: 3660, 4: 4790, estimated: true },
-    'h200-141gb': { 16: 2660, 8: 5120, 4: 6700, estimated: true },
-    'a100-80gb': { 16: 760, 8: 1460, 4: 1910, estimated: true },
-    'l40s-48gb': { 16: 600, 8: 1150, 4: 1510, estimated: true },
-  },
+export const GPU_RELATIVE_PERFORMANCE = {
+  "a100-80gb": 1.0,
+  "h100-80gb": 2.5,
+  "h200-141gb": 3.5,
+  "b200-hbm3e": 6.0,
+  "b300-hbm3e": 7.5,
+  "gb200-grace-blackwell": 6.5,
+  "l40s-48gb": 0.7,
+  "a800-80gb": 0.9,
+  "h20-china": 1.8,
+  "amd-mi300x": 3.3,
+  "amd-mi325x": 4.0,
+  "amd-mi350x": 5.0,
+  "intel-gaudi3": 2.0,
+  "google-tpu-v5p": 2.25,
+  "ibm-spyre-accelerator": 0.85,
+  default: 0.3,
 };
 
-// Относительная производительность GPU (база A100 80GB = 1.0)
-// Используется для экстраполяции, когда прямые данные в PERFORMANCE_MATRIX отсутствуют
-// Ключи ДОЛЖНЫ совпадать с ключами в gpuPresets.js
-export const GPU_RELATIVE_PERFORMANCE = {
-  'a100-80gb': 1.0,
-  'a100-40gb': 0.95,
-  'h100-80gb': 2.5,
-  'h200-141gb': 3.5,
-  'b200-hbm3e': 6.0,
-  'l40s-48gb': 0.7,
-  'a800-80gb': 0.9,
-  'h20-china': 1.8,
-  'amd-mi300x': 3.3,
-  'amd-mi325x': 4.0,
-  'intel-gaudi3': 2.0,
-  'google-tpu-v5p': 2.25,
-  'huawei-ascend910b': 0.8,
-  'huawei-ascend910c': 1.0,
-  'biren-br100': 0.7,
-  'via-big-island': 0.15,
-  'groq-lpu': 0.5,
-  'ibm-spyre-accelerator': 0.85,
-  'default': 0.3
+const GPUS = [
+  "a100-80gb", "h100-80gb", "h200-141gb", "b200-hbm3e", "b300-hbm3e",
+  "l40s-48gb", "a800-80gb", "h20-china",
+  "amd-mi300x", "amd-mi325x", "amd-mi350x",
+  "intel-gaudi3", "google-tpu-v5p",
+];
+
+const PREC_MULT = { 16: 1.0, 8: 1.85, 4: 2.4 };
+
+/** baseH100 задан при basePrecision; target precision масштабируется относительно base */
+function scaleFromH100(h100Tps, gpuId, targetPrecision, basePrecision = 16) {
+  const factor = GPU_RELATIVE_PERFORMANCE[gpuId] ?? GPU_RELATIVE_PERFORMANCE.default;
+  const h100Factor = GPU_RELATIVE_PERFORMANCE["h100-80gb"];
+  const baseMult = PREC_MULT[basePrecision] ?? 1.0;
+  const targetMult = PREC_MULT[targetPrecision] ?? 1.0;
+  const precMult = targetMult / baseMult;
+  return Math.round(h100Tps * (factor / h100Factor) * precMult);
+}
+
+function buildFromH100(baseH100, { moe8bitOnly = false, estimated = true, basePrecision = 16 } = {}) {
+  const entry = {};
+  const bp = moe8bitOnly ? 8 : basePrecision;
+  for (const gpu of GPUS) {
+    if (moe8bitOnly) {
+      const tps8 = scaleFromH100(baseH100, gpu, 8, bp);
+      entry[gpu] = {
+        16: null,
+        8: tps8,
+        4: scaleFromH100(baseH100, gpu, 4, bp),
+        estimated,
+      };
+    } else {
+      entry[gpu] = {
+        16: scaleFromH100(baseH100, gpu, 16, bp),
+        8: scaleFromH100(baseH100, gpu, 8, bp),
+        4: scaleFromH100(baseH100, gpu, 4, bp),
+        estimated,
+      };
+    }
+  }
+  return entry;
+}
+
+export const PERFORMANCE_MATRIX = {
+  // ── Qwen ──
+  "qwen3-8b": {
+    "h100-80gb": { 16: 5200, 8: 9500, 4: 12500 },
+    "b200-hbm3e": { 16: 12500, 8: 16000, 4: 42000 },
+    "b300-hbm3e": { 16: 15500, 8: 20000, 4: 52000, estimated: true },
+    "l40s-48gb": { 16: 1450, 8: 2700, 4: 3600 },
+    "amd-mi300x": { 16: 6800, 8: 11500, 4: 15000 },
+    "a100-80gb": { 16: 2100, 8: 3900, 4: 5200 },
+  },
+  "qwen3.6-27b": buildFromH100(420),
+  "qwen3.6-35b-a3b": buildFromH100(520), // 3B active; cloud OR ~180 t/s
+  "qwen3-235b": buildFromH100(720, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── Multimodal OSS ──
+  "qwen2.5-omni-7b": buildFromH100(1800, { estimated: true }),
+  "qwen3-vl-8b": buildFromH100(280, { estimated: true }),
+  "qwen3-vl-30b-a3b": buildFromH100(680, { estimated: true }),
+  "qwen2.5-vl-72b": buildFromH100(750, { estimated: true }),
+  "gemma-4-e4b": buildFromH100(2200, { estimated: true }),
+  "gemma-4-31b": buildFromH100(850, { estimated: true }),
+  "pixtral-12b": buildFromH100(1900, { estimated: true }),
+
+  // ── Llama 4 (17B active) — сверка: Groq OR ~448, on-prem H100 batch ~550–700 ──
+  "llama4-scout": buildFromH100(480),
+  "llama4-maverick": buildFromH100(420),
+  "llama3_3-70b": {
+    "h100-80gb": { 16: 700, 8: 1350, 4: 1780 },
+    "h200-141gb": { 16: 980, 8: 1900, 4: 2500 },
+    "b200-hbm3e": { 16: 1680, 8: 2300, 4: 5900 },
+    "b300-hbm3e": { 16: 2100, 8: 2900, 4: 7400, estimated: true },
+    "amd-mi300x": { 16: 920, 8: 1680, 4: 2350 },
+    "l40s-48gb": { 16: null, 8: null, 4: null },
+    "a100-80gb": { 16: null, 8: null, 4: 720 },
+  },
+
+  // ── DeepSeek V4 — base @ FP8; Fireworks ~167 cluster, vLLM batch ~280/GPU ──
+  "deepseek-v4-flash": buildFromH100(280, { moe8bitOnly: true, basePrecision: 8 }),
+  "deepseek-v4-pro": buildFromH100(120, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── DeepSeek V3 / R1 ──
+  "deepseek-v3-671b": buildFromH100(620, { moe8bitOnly: true, basePrecision: 8 }),
+  "deepseek-r1-671b": buildFromH100(580, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── Kimi K2 ──
+  "kimi-k2": buildFromH100(680, { moe8bitOnly: true, basePrecision: 8 }),
+  "kimi-k2.5": buildFromH100(700, { moe8bitOnly: true, basePrecision: 8 }),
+  "kimi-k2.6": buildFromH100(740, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── Mistral / OpenAI / GLM / Nemotron ──
+  "mistral-large-3-675b": buildFromH100(520, { moe8bitOnly: true, basePrecision: 8 }),
+  "gpt-oss-20b": buildFromH100(1200), // OR Groq ~880; 5B active class
+  "gpt-oss-120b": buildFromH100(2800), // OR Cerebras ~1705; on-prem batch ~2.5–3.5k
+  "glm-5.1": buildFromH100(480, { moe8bitOnly: true, basePrecision: 8 }),
+  "nemotron-3-nano": buildFromH100(8500),
+  "nemotron-3-super": buildFromH100(2800, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── Other ──
+  "gemma3-27b": buildFromH100(1900),
+  "qwq-32b": buildFromH100(180),
 };

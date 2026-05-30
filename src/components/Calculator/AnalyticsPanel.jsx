@@ -22,6 +22,7 @@ import {
   CloudOutlined
 } from '@ant-design/icons';
 import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
+import { CLOUD_PROVIDERS } from '../../data/cloudPresets';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -75,8 +76,13 @@ const AnalyticsPanel = ({ results, formData }) => {
         selectedSoftwarePreset
     } = formData;
 
+    const cloudAnnualUsd = results.cloudAnnualUsd;
+    const cloudFiveYearTco = results.cloudFiveYearTco;
+    const breakevenMonths = results.breakevenMonths;
+
     // Экономика
-    const totalTokensPerSecondSystem = safeDivide(userLoadConcurrentUsers * userLoadTokensPerRequest, userLoadResponseTimeSec);
+    const totalTokensPerSecondSystem = results.totalTokensPerSecRequired
+      ?? safeDivide(userLoadConcurrentUsers * userLoadTokensPerRequest, userLoadResponseTimeSec);
     const totalTokensOver5Years = totalTokensPerSecondSystem * 60 * 60 * 24 * 365 * 5;
     const costPerMillionTokens = safeDivide(fiveYearTco * 1000000, totalTokensOver5Years);
     const capexPerUser = safeDivide(capexUsd, userLoadConcurrentUsers);
@@ -171,6 +177,46 @@ const AnalyticsPanel = ({ results, formData }) => {
                     />
                 </Col>
             </Row>
+            {cloudFiveYearTco != null && (
+              <>
+                <Title level={5} style={{ marginTop: 8 }}>
+                  <CloudOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                  Cloud benchmark ({CLOUD_PROVIDERS[formData.cloudProviderId]?.name ?? 'cloud'})
+                </Title>
+                <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
+                  <Col xs={24} sm={8}>
+                    <KpiCard
+                      title="Cloud 5yr TCO"
+                      value={cloudFiveYearTco ?? 0}
+                      prefix="$"
+                      precision={0}
+                      color="#722ed1"
+                      icon={<CloudOutlined />}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <KpiCard
+                      title="On-Prem 5yr TCO"
+                      value={fiveYearTco ?? 0}
+                      prefix="$"
+                      precision={0}
+                      color="#52c41a"
+                      icon={<DollarCircleOutlined />}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <KpiCard
+                      title="Breakeven (мес.)"
+                      tooltip="Месяцев до окупации CapEx vs cloud-аренда"
+                      value={breakevenMonths ?? 0}
+                      precision={0}
+                      color="#fa8c16"
+                      icon={<FieldTimeOutlined />}
+                    />
+                  </Col>
+                </Row>
+              </>
+            )}
             <Divider />
 
             {/* --- Блок Производительности и Эффективности --- */} 

@@ -12,8 +12,23 @@ import {
   calcStorageRequirements,
   calcNetworkRequirements,
   calcRamRequirements,
-  getEstimatedTokensPerSec
+  getEstimatedTokensPerSec,
+  calcCloudBenchmark,
+  calcOpenRouterApiBenchmark,
 } from '../utils/calculationUtils';
+import { getCloudRateForGpu } from '../data/cloudPresets';
+import {
+  getCloudApiThroughput,
+  getOpenRouterPricing,
+  estimateAnnualTokens,
+} from '../data/openRouterBenchmarks';
+import {
+  calcUserLoadMetrics,
+  calcKvCacheGb,
+  calcKvCacheGbMinimum,
+  calcMemoryGpuRequirements,
+  calcFinalGpuCount,
+} from '../utils/hardwareRequirements';
 import { checkModelFitsGpu, checkConfigurationWarnings } from '../utils/validationUtils';
 
 // Вспомогательная функция для безопасного деления
@@ -79,7 +94,7 @@ const findServersWithFewerSlots = (currentSlots) => {
 
 // --- Определяем рекомендуемые ключи ВНЕ хука --- 
 const recKeys = {
-    model: 'qwen3-8b',
+    model: 'deepseek-v4-flash',
     gpu: Object.keys(GPU_PRESETS).find(key => GPU_PRESETS[key].recommended) || Object.keys(GPU_PRESETS)[0],
     server: Object.keys(SERVER_PRESETS).find(key => SERVER_PRESETS[key].recommended) || Object.keys(SERVER_PRESETS)[0],
     network: Object.keys(NETWORK_PRESETS).find(key => NETWORK_PRESETS[key].recommended) || Object.keys(NETWORK_PRESETS)[0],
@@ -100,7 +115,11 @@ const getInitialFormData = () => {
 
     return {
         modelParamsNumBillion: modelPreset?.params ?? 0,
-        modelParamsBitsPrecision: 16,
+        modelActiveParamsBillion: modelPreset?.activeParams ?? modelPreset?.params ?? 0,
+        deployVramGb: modelPreset?.deployVramGb ?? null,
+        deployGpuCount: modelPreset?.deployGpuCount ?? null,
+        checkpointSizeGb: modelPreset?.checkpointSizeGb ?? null,
+        modelParamsBitsPrecision: modelPreset?.deployPrecision ?? 16,
         userLoadConcurrentUsers: 100,
         userLoadTokensPerRequest: 100,
         userLoadResponseTimeSec: 3.0,
@@ -118,6 +137,7 @@ const getInitialFormData = () => {
         ramType: ramPreset?.type ?? "",
         ramCostPerGB: ramPreset?.costPerGB ?? 0,
         annualSoftwareCostPerServer: softwarePreset?.annualCostPerServer ?? 0,
+        annualSoftwareCostPerGpu: softwarePreset?.annualCostPerGpu ?? 0,
         dcCostsElectricityCostUsdPerKwh: 0.08,
         dcCostsPue: 1.3,
         dcCostsAnnualMaintenanceRate: 0.05,
@@ -128,7 +148,14 @@ const getInitialFormData = () => {
         avgToolCallsPerAgent: 2,
         avgAgentLlmTokens: 1500,
         avgExternalToolCost: 0.002,
-        agentRequestPercentage: 5
+        agentRequestPercentage: 5,
+        gpuCountMode: 'production',
+        performanceMode: 'onprem_peak',
+        cloudProviderId: 'lambda',
+        serverPricingMode: serverPreset?.pricingMode ?? 'barebone',
+        serverTotalPowerKw: serverPreset?.totalPowerKw ?? null,
+        serverTotalGpuVramGb: serverPreset?.totalGpuVramGb ?? null,
+        deployGpuCount: modelPreset?.deployGpuCount ?? null,
     };
 };
 
@@ -196,34 +223,13 @@ const calculateConfigurationRating = (
      const precision = modelParamsBitsPrecision;
 
     // Расчет требуемой производительности (для оценки масштаба TCO)
-    const U = userLoadConcurrentUsers;
-    const R = userLoadResponseTimeSec <= 0 ? 1 : userLoadResponseTimeSec;
-    const P_agent = isAgentModeEnabled ? (agentRequestPercentage || 0) / 100 : 0;
-    const T_simple = userLoadTokensPerRequest;
-    let totalTokensPerSecRequired = 0;
-    let totalLlmCallsPerSecond = 0;
-    let totalToolCallsPerSecond = 0;
-    let annualExternalToolCost = 0;
-    if (isAgentModeEnabled && P_agent > 0) {
-        const T_agent_internal = avgAgentsPerTask * avgLlmCallsPerAgent * avgAgentLlmTokens;
-        const T_agent_final = T_simple;
-        const T_agent_effective = T_agent_internal + T_agent_final;
-        const Calls_LLM_agent = avgAgentsPerTask * avgLlmCallsPerAgent + 1;
-        const Calls_Tool_agent = avgAgentsPerTask * avgToolCallsPerAgent;
-        const tokensAgentUsers = safeDivide(U * P_agent * T_agent_effective, R);
-        const llmCallsAgentUsers = safeDivide(U * P_agent * Calls_LLM_agent, R);
-        const toolCallsAgentUsers = safeDivide(U * P_agent * Calls_Tool_agent, R);
-        totalToolCallsPerSecond += toolCallsAgentUsers;
-        annualExternalToolCost += toolCallsAgentUsers * avgExternalToolCost * 3600 * 24 * 365;
-        totalTokensPerSecRequired += tokensAgentUsers;
-        totalLlmCallsPerSecond += llmCallsAgentUsers;
-    }
-    const tokensSimpleUsers = safeDivide(U * (1 - P_agent) * T_simple, R);
-    const llmCallsSimpleUsers = safeDivide(U * (1 - P_agent), R);
-    totalTokensPerSecRequired += tokensSimpleUsers;
-    totalLlmCallsPerSecond += llmCallsSimpleUsers;
-    
-    const numGpu = Math.ceil(safeDivide(totalTokensPerSecRequired, totalEffectiveTokensPerSec));
+    const loadMetrics = calcUserLoadMetrics(formData);
+    const {
+        totalTokensPerSecRequired,
+        totalLlmCallsPerSecond,
+        totalToolCallsPerSecond,
+        annualExternalToolCost,
+    } = loadMetrics;
 
     // --- 1. Проверка КРИТИЧЕСКИХ проблем --- 
     if (modelSizeError) {
@@ -435,6 +441,7 @@ const performFullCalculation = (configData) => {
         storageCostPerGB,
         ramCostPerGB,
         annualSoftwareCostPerServer,
+        annualSoftwareCostPerGpu,
         dcCostsElectricityCostUsdPerKwh,
         dcCostsPue,
         dcCostsAnnualMaintenanceRate,
@@ -451,10 +458,16 @@ const performFullCalculation = (configData) => {
     const MAX_REASONABLE_GPU = 1_000_000; // Максимальное разумное количество GPU
     const precision = parseInt(modelParamsBitsPrecision, 10);
 
-    const perfResult = getEstimatedTokensPerSec(modelId, gpuId, precision);
+    const perfResult = getEstimatedTokensPerSec(modelId, gpuId, precision, {
+      performanceMode: configData.performanceMode ?? 'onprem_peak',
+    });
     const estimatedTokensPerSecPerGpuBase = perfResult.tps;
     let performanceIsEstimated = perfResult.estimated;
     let performanceWarning = null;
+    const cloudApiMeta = getCloudApiThroughput(modelId);
+    const onPremPerf = configData.performanceMode === 'cloud_api'
+      ? getEstimatedTokensPerSec(modelId, gpuId, precision, { performanceMode: 'onprem_peak' })
+      : null;
 
     if (estimatedTokensPerSecPerGpuBase === null) {
         performanceWarning = `Не удалось оценить производительность для ${MODEL_PRESETS[modelId]?.name} на ${GPU_PRESETS[gpuId]?.name} @ ${precision}-бит.`;
@@ -491,34 +504,42 @@ const performFullCalculation = (configData) => {
     }
 
     const effectiveTokensPerSecPerGpu = estimatedTokensPerSecPerGpuBase * batchingOptimizationFactor;
-    const U = userLoadConcurrentUsers;
-    const R = userLoadResponseTimeSec;
-    const P_agent = isAgentModeEnabled ? (agentRequestPercentage || 0) / 100 : 0;
-    const T_simple = userLoadTokensPerRequest;
-    let totalTokensPerSecRequired = 0;
-    let totalLlmCallsPerSecond = 0;
-    let totalToolCallsPerSecond = 0;
-    let annualExternalToolCost = 0;
-    if (isAgentModeEnabled && P_agent > 0) {
-        const T_agent_internal = avgAgentsPerTask * avgLlmCallsPerAgent * avgAgentLlmTokens;
-        const T_agent_final = T_simple;
-        const T_agent_effective = T_agent_internal + T_agent_final;
-        const Calls_LLM_agent = avgAgentsPerTask * avgLlmCallsPerAgent + 1;
-        const Calls_Tool_agent = avgAgentsPerTask * avgToolCallsPerAgent;
-        const tokensAgentUsers = safeDivide(U * P_agent * T_agent_effective, R);
-        const llmCallsAgentUsers = safeDivide(U * P_agent * Calls_LLM_agent, R);
-        const toolCallsAgentUsers = safeDivide(U * P_agent * Calls_Tool_agent, R);
-        totalToolCallsPerSecond += toolCallsAgentUsers;
-        annualExternalToolCost += toolCallsAgentUsers * avgExternalToolCost * 3600 * 24 * 365;
-        totalTokensPerSecRequired += tokensAgentUsers;
-        totalLlmCallsPerSecond += llmCallsAgentUsers;
-    }
-    const tokensSimpleUsers = safeDivide(U * (1 - P_agent) * T_simple, R);
-    const llmCallsSimpleUsers = safeDivide(U * (1 - P_agent), R);
-    totalTokensPerSecRequired += tokensSimpleUsers;
-    totalLlmCallsPerSecond += llmCallsSimpleUsers;
-    
-    const numGpu = Math.ceil(safeDivide(totalTokensPerSecRequired, effectiveTokensPerSecPerGpu));
+
+    // GPU count / CapEx — всегда по on-prem peak; cloud_api только для SLA-метрик
+    const tpsForGpuSizing = (configData.performanceMode === 'cloud_api' && onPremPerf?.tps)
+      ? onPremPerf.tps * batchingOptimizationFactor
+      : effectiveTokensPerSecPerGpu;
+
+    const loadMetrics = calcUserLoadMetrics(configData);
+    const {
+        totalTokensPerSecRequired,
+        totalLlmCallsPerSecond,
+        totalToolCallsPerSecond,
+        annualExternalToolCost,
+    } = loadMetrics;
+
+    const kvCacheGb = calcKvCacheGb(configData, loadMetrics.avgContextTokensPerSession);
+    const kvCacheGbMinimum = calcKvCacheGbMinimum(configData);
+    const gpuCountMode = configData.gpuCountMode ?? 'production';
+    const memoryReq = calcMemoryGpuRequirements(
+      configData,
+      gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
+    );
+    const serverPreset = SERVER_PRESETS[serverId] ?? {};
+    const gpuCountResult = calcFinalGpuCount({
+        totalTokensPerSecRequired,
+        effectiveTokensPerSecPerGpu: tpsForGpuSizing,
+        gpusPerReplica: memoryReq.gpusPerReplica,
+        minGpusForMemory: memoryReq.minGpusForMemory,
+        gpuCountMode,
+        deployGpuCount: configData.deployGpuCount,
+        serverPricingMode: configData.serverPricingMode ?? serverPreset.pricingMode ?? 'barebone',
+        serverGpuCount: configData.serverConfigNumGpuPerServer ?? serverPreset.gpuCount ?? 8,
+        totalGpuVramGb: configData.serverTotalGpuVramGb ?? serverPreset.totalGpuVramGb,
+        weightGb: memoryReq.weightGb,
+        kvCacheGb: gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
+    });
+    const numGpu = gpuCountResult.numGpu;
 
     // --- Проверка на нереалистичное количество GPU --- 
     if (!Number.isFinite(numGpu) || numGpu > MAX_REASONABLE_GPU) {
@@ -561,12 +582,15 @@ const performFullCalculation = (configData) => {
         gpuConfigCostUsd, 
         serverConfigNumGpuPerServer, 
         serverConfigCostUsd,
+        serverPricingMode: configData.serverPricingMode,
+        serverTotalPowerKw: configData.serverTotalPowerKw,
         gpuConfigPowerKw,
         serverConfigPowerOverheadKw,
         dcCostsElectricityCostUsdPerKwh,
         dcCostsPue,
         dcCostsAnnualMaintenanceRate,
         annualSoftwareCostPerServer,
+        annualSoftwareCostPerGpu,
         modelParamsNumBillion,
         modelParamsBitsPrecision,
         storageCostPerGB,
@@ -585,9 +609,50 @@ const performFullCalculation = (configData) => {
     // Передаём полный CapEx в calcOpex для расчёта обслуживания от всей инфраструктуры
     const opexResult = calcOpex(numGpu, serversRequired, tempFormDataForCalc, annualExternalToolCost, totalCapex);
     const fiveYearTcoCalc = totalCapex + ((opexResult.totalOpex ?? 0) * 5);
+
+    const cloudProviderId = configData.cloudProviderId ?? 'lambda';
+    let cloudBenchmark;
+
+    if (cloudProviderId === 'openrouter') {
+      const orPricing = getOpenRouterPricing(modelId);
+      const annualTokens = estimateAnnualTokens({
+        totalTokensPerSecRequired: loadMetrics.totalTokensPerSecRequired,
+      });
+      cloudBenchmark = calcOpenRouterApiBenchmark({
+        annualTokens,
+        blendedUsdPerM: orPricing?.blendedPerM ?? 0,
+        onPremCapex: totalCapex,
+        onPremAnnualOpex: opexResult.totalOpex,
+      });
+      cloudBenchmark = {
+        ...cloudBenchmark,
+        cloudGpuRatePerHour: null,
+        cloudAnnualUsd: cloudBenchmark.openRouterAnnualUsd,
+        cloudFiveYearTco: cloudBenchmark.openRouterFiveYearTco,
+        openRouterProvider: orPricing?.provider ?? null,
+        isOpenRouterApi: true,
+      };
+    } else {
+      const cloudRate = getCloudRateForGpu(gpuId, cloudProviderId);
+      cloudBenchmark = {
+        ...calcCloudBenchmark(numGpu, cloudRate, totalCapex, opexResult.totalOpex),
+        isOpenRouterApi: false,
+      };
+    }
+
+    const apiStreamsForThroughput = (configData.performanceMode === 'cloud_api' && perfResult.tps > 0)
+      ? Math.ceil(totalTokensPerSecRequired / perfResult.tps)
+      : null;
+
+    if (configData.performanceMode === 'cloud_api' && perfResult.source === 'cloud_api') {
+      performanceWarning = `Cloud API режим: ${perfResult.tps} tok/s (median, ${perfResult.cloudProvider ?? 'OR'}). On-prem peak: ${onPremPerf?.tps ?? '?'} tok/s/GPU. CapEx считается по on-prem.`;
+    }
     
     const intermediateResults = {
       requiredGpu: numGpu ?? 0,
+      productionGpu: gpuCountResult.productionGpu ?? numGpu,
+      minimumDeployGpu: gpuCountResult.minimumDeployGpu ?? memoryReq.gpusPerReplica,
+      gpuCountMode,
       serversRequired: serversRequired ?? 0,
       capexUsd: totalCapex ?? 0,
       annualOpexUsd: opexResult.totalOpex ?? 0,
@@ -609,16 +674,44 @@ const performFullCalculation = (configData) => {
       totalToolCallsPerSecond: totalToolCallsPerSecond ?? 0,
       annualSoftwareCost: opexResult.annualSoftwareCost ?? 0,
       estimatedTokensPerSecPerGpu: estimatedTokensPerSecPerGpuBase, 
-      totalEffectiveTokensPerSec: numGpu > 0 ? (effectiveTokensPerSecPerGpu * numGpu) : 0,
+      onPremTokensPerSecPerGpu: onPremPerf?.tps ?? estimatedTokensPerSecPerGpuBase,
+      totalEffectiveTokensPerSec: numGpu > 0 ? (tpsForGpuSizing * numGpu) : 0,
+      cloudApiTps: cloudApiMeta?.median ?? perfResult.cloudBest ?? null,
+      cloudApiBestTps: cloudApiMeta?.best ?? null,
+      cloudApiProvider: cloudApiMeta?.provider ?? perfResult.cloudProvider ?? null,
+      performanceMode: configData.performanceMode ?? 'onprem_peak',
+      performanceSource: perfResult.source ?? 'onprem_peak',
+      apiStreamsForThroughput,
+      cloudProviderId,
+      totalTokensPerSecRequired,
+      gpusPerReplica: memoryReq.gpusPerReplica,
+      gpuCountForThroughput: gpuCountResult.gpuCountForThroughput,
+      gpuCountForMemory: memoryReq.minGpusForMemory,
+      modelWeightGb: memoryReq.weightGb,
+      kvCacheGb: gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
+      kvCacheGbMinimum,
+      ...cloudBenchmark,
     };
 
     // Проверка VRAM с использованием явных данных
     const modelFitResult = checkModelFitsGpu({ 
+        ...configData,
         modelParamsNumBillion, 
+        modelActiveParamsBillion: configData.modelActiveParamsBillion,
+        deployVramGb: configData.deployVramGb,
         modelParamsBitsPrecision, 
-        gpuConfigVramGb 
+        gpuConfigVramGb,
+        userLoadConcurrentUsers: configData.userLoadConcurrentUsers,
+        userLoadTokensPerRequest: configData.userLoadTokensPerRequest,
+        userLoadResponseTimeSec: configData.userLoadResponseTimeSec,
+        isAgentModeEnabled: configData.isAgentModeEnabled,
+        agentRequestPercentage: configData.agentRequestPercentage,
+        avgAgentsPerTask: configData.avgAgentsPerTask,
+        avgLlmCallsPerAgent: configData.avgLlmCallsPerAgent,
+        avgAgentLlmTokens: configData.avgAgentLlmTokens,
     });
     const currentModelSizeError = modelFitResult.hasError ? modelFitResult.errorMessage : "";
+    const vramWarning = modelFitResult.warningMessage ?? "";
 
     const rating = calculateConfigurationRating(
         configData, // Передаем полный configData для доступа ко всем полям в рейтинге
@@ -633,6 +726,7 @@ const performFullCalculation = (configData) => {
         ...intermediateResults,
         configRating: rating,
         modelSizeError: currentModelSizeError,
+        vramWarning,
         performanceWarning: performanceWarning,
         performanceIsEstimated: performanceIsEstimated
     };
@@ -659,11 +753,16 @@ const performFullCalculation = (configData) => {
          serverConfigNumGpuPerServer: SERVER_PRESETS[serverId]?.gpuCount,
          serverConfigCostUsd: SERVER_PRESETS[serverId]?.cost,
          serverConfigPowerOverheadKw: SERVER_PRESETS[serverId]?.power,
-         // Остальные пресеты берем из currentConfig
+         serverPricingMode: SERVER_PRESETS[serverId]?.pricingMode ?? 'barebone',
+         serverTotalPowerKw: SERVER_PRESETS[serverId]?.totalPowerKw ?? null,
+         serverTotalGpuVramGb: SERVER_PRESETS[serverId]?.totalGpuVramGb ?? null,
+         deployGpuCount: MODEL_PRESETS[modelId]?.deployGpuCount ?? null,
+         checkpointSizeGb: MODEL_PRESETS[modelId]?.checkpointSizeGb ?? null,
          networkCostPerPort: NETWORK_PRESETS[networkId]?.costPerPort,
          storageCostPerGB: STORAGE_PRESETS[storageId]?.costPerGB,
          ramCostPerGB: RAM_PRESETS[ramId]?.costPerGB,
          annualSoftwareCostPerServer: SOFTWARE_PRESETS[softwareId]?.annualCostPerServer,
+         annualSoftwareCostPerGpu: SOFTWARE_PRESETS[softwareId]?.annualCostPerGpu,
      };
 
      return performFullCalculation(configData);
@@ -702,6 +801,13 @@ export const useCalculator = () => {
       setFormData(prev => ({
         ...prev,
         modelParamsNumBillion: preset.params,
+        modelActiveParamsBillion: preset.activeParams ?? preset.params,
+        deployVramGb: preset.deployVramGb ?? null,
+        deployGpuCount: preset.deployGpuCount ?? null,
+        checkpointSizeGb: preset.checkpointSizeGb ?? null,
+        modelParamsBitsPrecision: preset.deployPrecision ?? prev.modelParamsBitsPrecision,
+        isMultimodal: preset.isMultimodal ?? false,
+        multimodalOverheadGb: preset.multimodalOverheadGb ?? 0,
         isAgentModeEnabled: preset.supports_tool_calls ? prev.isAgentModeEnabled : false 
       }));
       setSelectedModelPreset(presetKey);
@@ -709,7 +815,7 @@ export const useCalculator = () => {
     } else {
         setSelectedModelPreset("");
         setShowModelInfo(false);
-        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, isAgentModeEnabled: false }));
+        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelActiveParamsBillion: 0, deployVramGb: null, deployGpuCount: null, checkpointSizeGb: null, isMultimodal: false, multimodalOverheadGb: 0, isAgentModeEnabled: false }));
     }
   };
   const applyGpuPreset = (presetKey) => {
@@ -736,11 +842,14 @@ export const useCalculator = () => {
         serverConfigNumGpuPerServer: preset.gpuCount,
         serverConfigCostUsd: preset.cost,
         serverConfigPowerOverheadKw: preset.power,
+        serverPricingMode: preset.pricingMode ?? 'barebone',
+        serverTotalPowerKw: preset.totalPowerKw ?? null,
+        serverTotalGpuVramGb: preset.totalGpuVramGb ?? null,
       }));
       setSelectedServerPreset(presetKey);
     } else {
         setSelectedServerPreset("");
-        setFormData(prev => ({ ...prev, serverConfigNumGpuPerServer: 0, serverConfigCostUsd: 0, serverConfigPowerOverheadKw: 0 }));
+        setFormData(prev => ({ ...prev, serverConfigNumGpuPerServer: 0, serverConfigCostUsd: 0, serverConfigPowerOverheadKw: 0, serverPricingMode: 'barebone', serverTotalPowerKw: null, serverTotalGpuVramGb: null }));
     }
   };
   const applyNetworkPreset = (presetKey) => {
@@ -788,14 +897,15 @@ export const useCalculator = () => {
   const applySoftwarePreset = (presetKey) => {
       if (presetKey && SOFTWARE_PRESETS[presetKey]) {
           const preset = SOFTWARE_PRESETS[presetKey];
-          setFormData(prev => ({
-              ...prev,
-              annualSoftwareCostPerServer: preset.annualCostPerServer,
-          }));
+      setFormData(prev => ({
+          ...prev,
+          annualSoftwareCostPerServer: preset.annualCostPerServer ?? 0,
+          annualSoftwareCostPerGpu: preset.annualCostPerGpu ?? 0,
+      }));
           setSelectedSoftwarePreset(presetKey);
       } else {
           setSelectedSoftwarePreset("");
-          setFormData(prev => ({ ...prev, annualSoftwareCostPerServer: 0 }));
+          setFormData(prev => ({ ...prev, annualSoftwareCostPerServer: 0, annualSoftwareCostPerGpu: 0 }));
       }
   };
 
@@ -810,7 +920,7 @@ export const useCalculator = () => {
       value = eOrName.target.type === 'checkbox' ? eOrName.target.checked : eOrName.target.value;
     }
     let processedValue = value;
-    const stringFields = ['gpuConfigModel', 'networkType', 'storageType', 'ramType'];
+    const stringFields = ['gpuConfigModel', 'networkType', 'storageType', 'ramType', 'gpuCountMode', 'cloudProviderId', 'performanceMode'];
     const booleanFields = ['isAgentModeEnabled'];
     const intFields = ['modelParamsBitsPrecision', 'avgAgentsPerTask', 'avgLlmCallsPerAgent', 'avgToolCallsPerAgent', 'avgAgentLlmTokens', 'agentRequestPercentage', 'userLoadConcurrentUsers', 'userLoadTokensPerRequest', 'serverConfigNumGpuPerServer', 'gpuConfigVramGb'];
 
@@ -877,14 +987,18 @@ export const useCalculator = () => {
   };
 
   // --- Валидация --- 
-  const validateForm = () => {
-      setConfigWarnings(checkConfigurationWarnings(formData, results));
+  const validateForm = (resultSnapshot = results) => {
+      const warnings = checkConfigurationWarnings(formData, resultSnapshot);
+      if (resultSnapshot.vramWarning) {
+          warnings.unshift(resultSnapshot.vramWarning);
+      }
+      setConfigWarnings(warnings);
   };
 
   // --- useEffect для запуска расчетов ---
   useEffect(() => {
-    calculateResults();
-    validateForm();    
+    const newResults = calculateResults();
+    validateForm(newResults);
   }, [formData]);
 
   // --- Функция поиска самой дешевой конфигурации ---
@@ -918,6 +1032,8 @@ export const useCalculator = () => {
                 // 1. Проверка VRAM для текущей точности
                 const vramCheck = checkModelFitsGpu({
                     modelParamsNumBillion: currentConfig.modelParamsNumBillion,
+                    modelActiveParamsBillion: currentConfig.modelActiveParamsBillion,
+                    deployVramGb: currentConfig.deployVramGb,
                     modelParamsBitsPrecision: precision,
                     gpuConfigVramGb: gpuPreset.vram
                 });
@@ -956,6 +1072,7 @@ export const useCalculator = () => {
                         storageCostPerGB: STORAGE_PRESETS[currentConfig.storageId]?.costPerGB,
                         ramCostPerGB: RAM_PRESETS[currentConfig.ramId]?.costPerGB,
                         annualSoftwareCostPerServer: SOFTWARE_PRESETS[currentConfig.softwareId]?.annualCostPerServer,
+                        annualSoftwareCostPerGpu: SOFTWARE_PRESETS[currentConfig.softwareId]?.annualCostPerGpu,
                     };
 
                     const calculationResult = performFullCalculation(tempConfigData);

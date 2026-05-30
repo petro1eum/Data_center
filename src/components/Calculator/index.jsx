@@ -1,6 +1,7 @@
 import React from 'react';
 import { Layout, Row, Col, Typography, Space, Tabs } from 'antd';
-import { CalculatorOutlined, BarChartOutlined, FileTextOutlined, LineChartOutlined, ReadOutlined } from '@ant-design/icons';
+import { CalculatorOutlined, BarChartOutlined, FileTextOutlined, LineChartOutlined, ReadOutlined, ThunderboltOutlined } from '@ant-design/icons';
+import PerformancePanel from './PerformancePanel';
 import { useCalculator } from '../../hooks/useCalculator';
 import SettingsPanel from './SettingsPanel';
 import ResultsPanel from './ResultsPanel';
@@ -33,6 +34,19 @@ const GenAIDataCenterCalculator = () => {
                     cheapestConfigs={calculator.cheapestConfigs}
                     findError={calculator.findError}
                   />,
+    },
+    {
+      label: <><ThunderboltOutlined /> Скорость</>,
+      key: 'performance',
+      children: (
+        <PerformancePanel
+          formData={calculator.formData}
+          results={calculator.results}
+          selectedModelPreset={calculator.selectedModelPreset}
+          selectedGpuPreset={calculator.selectedGpuPreset}
+          performanceWarning={calculator.performanceWarning}
+        />
+      ),
     },
     {
       label: <><LineChartOutlined /> Аналитика</>,
