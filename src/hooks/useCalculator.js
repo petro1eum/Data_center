@@ -13,6 +13,8 @@ import {
   pickCheapestConfigs,
   isSameHardwareConfig,
   filterWorkableResults,
+  filterAcceptableResults,
+  findParetoFrontier,
   OPTIMIZATION_GOALS,
 } from '../utils/configOptimizer';
 import { performFullCalculation } from '../engine/fullCalculation';
@@ -136,11 +138,8 @@ export const useCalculator = () => {
   const [selectedSoftwarePreset, setSelectedSoftwarePreset] = useState(recKeys.software);
   // --- Инициализация results с помощью calculateInitialResults ---
   const [results, setResults] = useState(() => calculateInitialResults(getInitialFormData()));
-  const [isFindingConfig, setIsFindingConfig] = useState(false);
-  const [cheapestConfigs, setCheapestConfigs] = useState([]); // Может содержать и неоптимальные
-  const [findError, setFindError] = useState(null);
-  const [findWarning, setFindWarning] = useState(null);
   const [recommendedConfig, setRecommendedConfig] = useState(null);
+  const [recommendedAlternatives, setRecommendedAlternatives] = useState([]);
   const [isSearchingOptimal, setIsSearchingOptimal] = useState(false);
   const [recommendedError, setRecommendedError] = useState(null);
   const [optimalSearchNote, setOptimalSearchNote] = useState(null);
@@ -381,7 +380,8 @@ export const useCalculator = () => {
 
   const performOptimalConfigSearch = () => {
     const allResults = runConfigSearch();
-    const optimal = pickOptimalConfig(allResults, formData.optimizationGoal ?? 'quality');
+    const goal = formData.optimizationGoal ?? 'quality';
+    const optimal = pickOptimalConfig(allResults, goal);
     const current = {
       gpuKey: selectedGpuPreset,
       serverKey: selectedServerPreset,
@@ -393,9 +393,22 @@ export const useCalculator = () => {
       serverId: selectedServerPreset,
     });
 
+    const acceptable = filterAcceptableResults(allResults);
+    const paretoPool = acceptable.length ? acceptable : filterWorkableResults(allResults);
+    const pareto = findParetoFrontier(paretoPool);
+    const alternatives = pareto
+      .filter((p) => !optimal || !isSameHardwareConfig(p, optimal))
+      .slice(0, 3);
+
     if (optimal && isSameHardwareConfig(current, optimal)) {
       return {
-        config: null,
+        config: {
+          ...optimal,
+          isCurrentOptimal: true,
+          savingsVsCurrent: 0,
+          currentScore: currentCalc?.configRating?.score ?? optimal.ratingScore,
+        },
+        alternatives,
         note: 'already_optimal',
         appliedRating: optimal.ratingScore,
       };
@@ -408,15 +421,16 @@ export const useCalculator = () => {
           savingsVsCurrent: Math.max(0, (currentCalc?.fiveYearTco ?? 0) - optimal.fiveYearTco),
           currentScore: currentCalc?.configRating?.score ?? 0,
         },
+        alternatives,
         note: null,
       };
     }
 
     const workable = filterWorkableResults(allResults);
     if (!workable.length) {
-      return { config: null, note: 'no_workable' };
+      return { config: null, alternatives: [], note: 'no_workable' };
     }
-    return { config: null, note: 'no_acceptable' };
+    return { config: null, alternatives: pickCheapestConfigs(workable, 3), note: 'no_acceptable' };
   };
 
   const findOptimalHardwareConfig = async () => {
@@ -429,8 +443,9 @@ export const useCalculator = () => {
     setOptimalSearchNote(null);
     try {
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const { config, note, appliedRating } = performOptimalConfigSearch();
+      const { config, alternatives, note, appliedRating } = performOptimalConfigSearch();
       setRecommendedConfig(config);
+      setRecommendedAlternatives(alternatives ?? []);
       if (note === 'already_optimal') {
         setOptimalSearchNote(
           `Текущая конфигурация уже оптимальна (рейтинг ${appliedRating ?? '?'}/100).`,
@@ -447,6 +462,7 @@ export const useCalculator = () => {
     } catch (err) {
       setRecommendedError(err.message);
       setRecommendedConfig(null);
+      setRecommendedAlternatives([]);
       setOptimalSearchNote(null);
     } finally {
       setIsSearchingOptimal(false);
@@ -476,8 +492,8 @@ export const useCalculator = () => {
       serverTotalPowerKw: serverPreset.totalPowerKw ?? null,
       serverTotalGpuVramGb: serverPreset.totalGpuVramGb ?? null,
     }));
-    setRecommendedConfig(null);
     setOptimalSearchNote(null);
+    // Пересчёт подберёт конфигурацию заново через useEffect
   };
 
   // Автоподбор при изменении модели/нагрузки (фоновый)
@@ -491,8 +507,16 @@ export const useCalculator = () => {
       setIsSearchingOptimal(true);
       setRecommendedError(null);
       try {
-        const { config } = performOptimalConfigSearch();
+        const { config, alternatives, note, appliedRating } = performOptimalConfigSearch();
         setRecommendedConfig(config);
+        setRecommendedAlternatives(alternatives ?? []);
+        if (note === 'already_optimal') {
+          setOptimalSearchNote(
+            `Текущая конфигурация уже оптимальна для приоритета «${OPTIMIZATION_GOALS[formData.optimizationGoal ?? 'quality']?.label}» (рейтинг ${appliedRating ?? '?'}/100).`,
+          );
+        } else {
+          setOptimalSearchNote(null);
+        }
       } catch (err) {
         setRecommendedError(err.message);
         setRecommendedConfig(null);
@@ -527,44 +551,6 @@ export const useCalculator = () => {
     }
   };
 
-  // --- Функция поиска самой дешевой конфигурации ---
-  const findCheapestHardwareConfig = async () => {
-    setIsFindingConfig(true);
-    setCheapestConfigs([]);
-    setFindError(null);
-    setFindWarning(null);
-
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const allResults = runConfigSearch();
-      const potentiallyValidResults = allResults.filter(
-        (r) => !['Ошибка VRAM', 'Нерабочая', 'Нереалистично'].includes(r.ratingLabel),
-      );
-      const acceptableResults = potentiallyValidResults.filter((r) => r.ratingScore >= 40);
-
-      if (potentiallyValidResults.length === 0) {
-        setFindError(
-          'Не найдено рабочей конфигурации для заданных параметров. Измените модель, точность или нагрузку.',
-        );
-        setCheapestConfigs([]);
-      } else {
-        setCheapestConfigs(pickCheapestConfigs(allResults, 3));
-        if (acceptableResults.length === 0) {
-          setFindWarning(
-            'Нет конфигураций с рейтингом ≥ 40/100. Показаны 3 самые дешёвые рабочие, но неэффективные варианты.',
-          );
-        } else {
-          setFindWarning(null);
-        }
-        setFindError(null);
-      }
-    } catch (error) {
-      setFindError(`Произошла ошибка при поиске: ${error.message}`);
-    } finally {
-      setIsFindingConfig(false);
-    }
-  };
-
   // --- Возвращаемые значения хука ---
   return {
     formData,
@@ -592,12 +578,8 @@ export const useCalculator = () => {
     setShowModelInfo,
     configWarnings, 
     performanceWarning, 
-    findCheapestHardwareConfig,
-    isFindingConfig,
-    cheapestConfigs,
-    findError,
-    findWarning,
     recommendedConfig,
+    recommendedAlternatives,
     isSearchingOptimal,
     recommendedError,
     optimalSearchNote,

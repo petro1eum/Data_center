@@ -4,10 +4,10 @@ import { CalculatorOutlined, BarChartOutlined, FileTextOutlined, LineChartOutlin
 import PerformancePanel from './PerformancePanel';
 import { useCalculator } from '../../hooks/useCalculator';
 import SettingsPanel from './SettingsPanel';
-import ResultsPanel from './ResultsPanel';
 import TechnicalReport from './TechnicalReport';
 import AnalyticsPanel from './AnalyticsPanel';
 import LlmHandbook from './LlmHandbook';
+import ResultsPanel from './ResultsPanel';
 
 const { Header, Content, Footer } = Layout;
 const { Title, Paragraph } = Typography;
@@ -29,12 +29,8 @@ const GenAIDataCenterCalculator = () => {
                     modelSizeError={calculator.modelSizeError}
                     configWarnings={calculator.configWarnings}
                     performanceWarning={calculator.performanceWarning}
-                    findCheapestHardwareConfig={calculator.findCheapestHardwareConfig}
-                    isFindingConfig={calculator.isFindingConfig}
-                    cheapestConfigs={calculator.cheapestConfigs}
-                    findError={calculator.findError}
-                    findWarning={calculator.findWarning}
                     recommendedConfig={calculator.recommendedConfig}
+                    recommendedAlternatives={calculator.recommendedAlternatives}
                     isSearchingOptimal={calculator.isSearchingOptimal}
                     recommendedError={calculator.recommendedError}
                     optimalSearchNote={calculator.optimalSearchNote}

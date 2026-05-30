@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Row, Col, Statistic, Typography, Divider, Alert, Descriptions, Space, Tooltip, List, Progress, Tag, Button, Spin, Segmented } from 'antd';
+import { Card, Row, Col, Statistic, Typography, Divider, Alert, Descriptions, Space, Tooltip, List, Progress, Tag } from 'antd';
 import { 
   BarChartOutlined, 
   DollarCircleOutlined, 
@@ -15,12 +15,12 @@ import {
   LikeOutlined,
   InfoCircleOutlined,
   BulbOutlined,
-  CheckCircleOutlined,
   CloseCircleOutlined,
 } from '@ant-design/icons';
 import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 import { CLOUD_PROVIDERS } from '../../data/cloudPresets';
 import TcoChart from './TcoChart';
+import ConfigRecommendationPanel from './ConfigRecommendationPanel';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -185,120 +185,14 @@ const RatingDisplay = ({ rating }) => {
     );
 };
 
-const RecommendedConfigCard = ({
-  recommendedConfig,
-  isSearchingOptimal,
-  recommendedError,
-  optimalSearchNote,
-  findOptimalHardwareConfig,
-  applyRecommendedConfig,
-  optimizationGoal,
-  setOptimizationGoal,
-  optimizationGoals,
-  currentTco,
-  currentScore,
-}) => (
-  <Card
-    size="small"
-    style={{ marginTop: 16 }}
-    styles={{ header: { backgroundColor: '#f6ffed' }, body: { paddingTop: 16 } }}
-    title={<Space><BulbOutlined /> Оптимальная конфигурация</Space>}
-  >
-    <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-      Подбор GPU + сервер + точность под модель и нагрузку (рейтинг ≥ 40/100).
-    </Paragraph>
-    <Space direction="vertical" style={{ width: '100%', marginBottom: 16 }} size="middle">
-      <div>
-        <Text type="secondary" style={{ display: 'block', marginBottom: 8 }}>Приоритет оптимизации:</Text>
-        <Segmented
-          value={optimizationGoal ?? 'quality'}
-          onChange={setOptimizationGoal}
-          options={Object.values(optimizationGoals ?? {}).map((g) => ({
-            label: g.label,
-            value: g.id,
-          }))}
-          block
-        />
-        {optimizationGoals?.[optimizationGoal ?? 'quality']?.description && (
-          <Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 8 }}>
-            {optimizationGoals[optimizationGoal ?? 'quality'].description}
-          </Text>
-        )}
-      </div>
-      <Button
-        type="primary"
-        icon={<BulbOutlined />}
-        onClick={findOptimalHardwareConfig}
-        loading={isSearchingOptimal}
-        disabled={isSearchingOptimal}
-      >
-        Подобрать оптимальную конфигурацию
-      </Button>
-    </Space>
-
-    {recommendedError && (
-      <Alert type="error" showIcon message={recommendedError} style={{ marginBottom: 12 }} />
-    )}
-    {optimalSearchNote && !recommendedConfig && !recommendedError && (
-      <Alert type="info" showIcon message={optimalSearchNote} style={{ marginBottom: 12 }} />
-    )}
-
-    <Spin spinning={isSearchingOptimal && !recommendedConfig} tip="Перебор конфигураций...">
-      {recommendedConfig && (
-        <>
-          <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }} style={{ marginBottom: 12 }}>
-            <Descriptions.Item label="GPU">{recommendedConfig.gpuName}</Descriptions.Item>
-            <Descriptions.Item label="Сервер">{recommendedConfig.serverName}</Descriptions.Item>
-            <Descriptions.Item label="Точность">{recommendedConfig.precision}-bit</Descriptions.Item>
-            <Descriptions.Item label="GPU / Серверов">
-              {recommendedConfig.requiredGpu} GPU / {recommendedConfig.serversRequired} серв.
-            </Descriptions.Item>
-            <Descriptions.Item label="TCO (5 лет)">
-              <Text strong style={{ color: '#52c41a' }}>{formatCurrency(recommendedConfig.fiveYearTco)}</Text>
-              {currentTco > 0 && (recommendedConfig.savingsVsCurrent ?? 0) > 0 && (
-                <Text type="secondary"> (экономия ~{formatCurrency(recommendedConfig.savingsVsCurrent)})</Text>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Рейтинг">
-              <Tag color={recommendedConfig.ratingScore >= 75 ? 'success' : recommendedConfig.ratingScore >= 50 ? 'blue' : 'warning'}>
-                {recommendedConfig.ratingScore}/100 — {recommendedConfig.ratingLabel}
-              </Tag>
-              {typeof currentScore === 'number' && currentScore < recommendedConfig.ratingScore && (
-                <Text type="secondary"> (сейчас {currentScore}/100)</Text>
-              )}
-            </Descriptions.Item>
-            <Descriptions.Item label="Производительность" span={2}>
-              ~{formatNumber(recommendedConfig.totalEffectiveTokensPerSec, 0)} tok/s
-            </Descriptions.Item>
-          </Descriptions>
-          <Button
-            type="primary"
-            icon={<CheckCircleOutlined />}
-            onClick={() => applyRecommendedConfig(recommendedConfig)}
-          >
-            Применить рекомендацию
-          </Button>
-        </>
-      )}
-    </Spin>
-  </Card>
-);
-
-/**
- * Компонент панели результатов
- */
 const ResultsPanel = ({
   results,
   formData,
   modelSizeError,
   configWarnings,
   performanceWarning,
-  findCheapestHardwareConfig,
-  isFindingConfig,
-  cheapestConfigs,
-  findError,
-  findWarning,
   recommendedConfig,
+  recommendedAlternatives,
   isSearchingOptimal,
   recommendedError,
   optimalSearchNote,
@@ -369,6 +263,21 @@ const ResultsPanel = ({
         {configWarnings && configWarnings.length > 0 && configWarnings.map((warn, index) => (
             <Alert key={index} message={warn} type="warning" showIcon style={{ marginBottom: 16 }} closable />
         ))}
+
+        <ConfigRecommendationPanel
+          recommendedConfig={recommendedConfig}
+          recommendedAlternatives={recommendedAlternatives}
+          isSearchingOptimal={isSearchingOptimal}
+          recommendedError={recommendedError}
+          optimalSearchNote={optimalSearchNote}
+          findOptimalHardwareConfig={findOptimalHardwareConfig}
+          applyRecommendedConfig={applyRecommendedConfig}
+          optimizationGoal={formData?.optimizationGoal}
+          setOptimizationGoal={setOptimizationGoal}
+          optimizationGoals={optimizationGoals}
+          currentTco={fiveYearTco}
+          currentScore={configRating?.score}
+        />
         
         {/* Основные KPI */} 
         <Row gutter={[16, 24]} style={{ marginBottom: 24 }}> 
@@ -482,20 +391,6 @@ const ResultsPanel = ({
           />
         )}
         
-        <RecommendedConfigCard
-          recommendedConfig={recommendedConfig}
-          isSearchingOptimal={isSearchingOptimal}
-          recommendedError={recommendedError}
-          optimalSearchNote={optimalSearchNote}
-          findOptimalHardwareConfig={findOptimalHardwareConfig}
-          optimizationGoal={formData?.optimizationGoal}
-          setOptimizationGoal={setOptimizationGoal}
-          optimizationGoals={optimizationGoals}
-          applyRecommendedConfig={applyRecommendedConfig}
-          currentTco={fiveYearTco}
-          currentScore={configRating?.score}
-        />
-
         {/* Рейтинг конфигурации */}
         <RatingDisplay rating={configRating} />
         
@@ -560,65 +455,6 @@ const ResultsPanel = ({
         </Card>
       )}
 
-      {/* Блок поиска самой дешевой конфигурации */}
-      <div style={{ marginTop: '20px' }}>
-          <Title level={5}>Оптимизация стоимости</Title>
-          <Paragraph type="secondary">
-              Найти 3 самые дешевые конфигурации GPU+Сервер, которые подходят для текущей модели, точности и нагрузки.
-          </Paragraph>
-          <Space direction="vertical" style={{ width: '100%' }}>
-              <Button 
-                  type="primary" 
-                  onClick={findCheapestHardwareConfig} 
-                  loading={isFindingConfig}
-                  disabled={isFindingConfig}
-              >
-                  Найти самую дешевую конфигурацию
-              </Button>
-
-              <Spin spinning={isFindingConfig} tip="Идет поиск конфигураций...">
-                  <div style={{ minHeight: '50px', marginTop: '15px' }}> {/* Минимальная высота для Spin */}
-                      {findError && (
-                          <Alert message={findError} type="error" showIcon />
-                      )}
-                      {findWarning && !findError && (
-                          <Alert message={findWarning} type="warning" showIcon style={{ marginBottom: 12 }} />
-                      )}
-                      {cheapestConfigs && cheapestConfigs.length > 0 && !findError && (
-                          <List
-                              header={<b>Топ-{cheapestConfigs.length} самых дешевых конфигураций:</b>}
-                              bordered
-                              dataSource={cheapestConfigs}
-                              renderItem={(item, index) => (
-                                  <List.Item
-                                    actions={[
-                                      <Button
-                                        key="apply"
-                                        type="link"
-                                        size="small"
-                                        onClick={() => applyRecommendedConfig?.(item)}
-                                      >
-                                        Применить
-                                      </Button>,
-                                    ]}
-                                  >
-                                      <Typography.Text>
-                                          <b>{index + 1}. GPU:</b> {item.gpuName}, <b>Сервер:</b> {item.serverName} <br />
-                                          <b>TCO (5 лет):</b> {formatCurrency(item.fiveYearTco)} 
-                                          (Требуется GPU: {item.requiredGpu}, Серверов: {item.serversRequired}, Рейтинг: {item.ratingScore}/100 {item.ratingLabel})
-                                      </Typography.Text>
-                                  </List.Item>
-                              )}
-                          />
-                      )}
-                      {/* Можно добавить сообщение, если поиск завершен, но ничего не найдено (кроме ошибки) */}
-                      {!isFindingConfig && !findError && cheapestConfigs && cheapestConfigs.length === 0 && (
-                           <Text type="secondary">Результаты поиска будут отображены здесь.</Text> 
-                      )}
-                  </div>
-              </Spin>
-          </Space>
-      </div>
     </Space>
   );
 };
