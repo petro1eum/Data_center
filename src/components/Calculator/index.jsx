@@ -33,6 +33,11 @@ const GenAIDataCenterCalculator = () => {
                     isFindingConfig={calculator.isFindingConfig}
                     cheapestConfigs={calculator.cheapestConfigs}
                     findError={calculator.findError}
+                    findWarning={calculator.findWarning}
+                    recommendedConfig={calculator.recommendedConfig}
+                    isSearchingOptimal={calculator.isSearchingOptimal}
+                    recommendedError={calculator.recommendedError}
+                    applyRecommendedConfig={calculator.applyRecommendedConfig}
                   />,
     },
     {

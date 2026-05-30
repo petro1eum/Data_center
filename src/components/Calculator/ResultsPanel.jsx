@@ -13,7 +13,10 @@ import {
   CodeOutlined,
   DashboardOutlined,
   LikeOutlined,
-  InfoCircleOutlined
+  InfoCircleOutlined,
+  BulbOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
 } from '@ant-design/icons';
 import { SOFTWARE_PRESETS } from '../../data/softwarePresets';
 import { CLOUD_PROVIDERS } from '../../data/cloudPresets';
@@ -95,6 +98,25 @@ const formatCurrency = (num) => {
     return formatter.format(Math.round(num)); 
 };
 
+// Рендер текста с **жирным** markdown
+const renderBoldText = (text) => {
+  if (!text) return null;
+  const parts = String(text).split(/(\*\*[^*]+\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <Text strong key={i}>{part.slice(2, -2)}</Text>;
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
+};
+
+const ISSUE_ICONS = {
+  critical: <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
+  warning: <WarningOutlined style={{ color: '#faad14' }} />,
+  recommendation: <BulbOutlined style={{ color: '#1890ff' }} />,
+  info: <InfoCircleOutlined style={{ color: '#8c8c8c' }} />,
+};
+
 // Компонент для отображения рейтинга 
 const RatingDisplay = ({ rating }) => {
     // Добавим проверку и fallback текст, если рейтинг не пришел
@@ -139,17 +161,131 @@ const RatingDisplay = ({ rating }) => {
                      <Tag color={color} style={{ marginTop: 8, fontSize: 14 }}>{rating.label || 'N/A'}</Tag>
                 </Col>
                 <Col xs={24} sm={18} md={19} lg={20}>
-                    <Paragraph style={{ marginBottom: 4 }}>{rating.description || "Рейтинг не рассчитан."}</Paragraph>
+                    {rating.issues && rating.issues.length > 0 ? (
+                      <List
+                        size="small"
+                        dataSource={rating.issues}
+                        renderItem={(issue) => (
+                          <List.Item style={{ padding: '4px 0', border: 'none' }}>
+                            <Space align="start" size="small">
+                              {ISSUE_ICONS[issue.type] ?? ISSUE_ICONS.info}
+                              <Text style={{ lineHeight: 1.6 }}>{renderBoldText(issue.text)}</Text>
+                            </Space>
+                          </List.Item>
+                        )}
+                      />
+                    ) : (
+                      <Paragraph style={{ marginBottom: 4, whiteSpace: 'pre-wrap' }}>
+                        {renderBoldText(rating.description) || 'Рейтинг не рассчитан.'}
+                      </Paragraph>
+                    )}
                 </Col>
             </Row>
         </Card>
     );
 };
 
+const RecommendedConfigCard = ({
+  recommendedConfig,
+  isSearchingOptimal,
+  recommendedError,
+  applyRecommendedConfig,
+  currentTco,
+  currentScore,
+}) => {
+  if (recommendedError) {
+    return (
+      <Alert
+        type="error"
+        showIcon
+        message="Не удалось подобрать конфигурацию"
+        description={recommendedError}
+        style={{ marginTop: 16 }}
+      />
+    );
+  }
+
+  if (isSearchingOptimal && !recommendedConfig) {
+    return (
+      <Card
+        size="small"
+        style={{ marginTop: 16 }}
+        styles={{ header: { backgroundColor: '#f6ffed' }, body: { paddingTop: 16 } }}
+        title={<Space><BulbOutlined /> Рекомендуемая конфигурация</Space>}
+      >
+        <Spin tip="Подбор оптимальной конфигурации под вашу нагрузку..." />
+      </Card>
+    );
+  }
+
+  if (!recommendedConfig) return null;
+
+  const savings = recommendedConfig.savingsVsCurrent ?? Math.max(0, (currentTco ?? 0) - recommendedConfig.fiveYearTco);
+
+  return (
+    <Card
+      size="small"
+      hoverable
+      style={{ marginTop: 16, borderColor: '#b7eb8f' }}
+      styles={{ header: { backgroundColor: '#f6ffed' }, body: { paddingTop: 16 } }}
+      title={<Space><BulbOutlined /> Рекомендуемая конфигурация</Space>}
+      extra={
+        <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => applyRecommendedConfig(recommendedConfig)}>
+          Применить
+        </Button>
+      }
+    >
+      <Paragraph type="secondary" style={{ marginBottom: 12 }}>
+        Система подобрала более эффективный вариант под текущую модель и нагрузку. Вы можете применить его или изменить параметры вручную.
+      </Paragraph>
+      <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
+        <Descriptions.Item label="GPU">{recommendedConfig.gpuName}</Descriptions.Item>
+        <Descriptions.Item label="Сервер">{recommendedConfig.serverName}</Descriptions.Item>
+        <Descriptions.Item label="Точность">{recommendedConfig.precision}-bit</Descriptions.Item>
+        <Descriptions.Item label="GPU / Серверов">
+          {recommendedConfig.requiredGpu} GPU / {recommendedConfig.serversRequired} серв.
+        </Descriptions.Item>
+        <Descriptions.Item label="TCO (5 лет)">
+          <Text strong style={{ color: '#52c41a' }}>{formatCurrency(recommendedConfig.fiveYearTco)}</Text>
+          {currentTco > 0 && savings > 0 && (
+            <Text type="secondary"> (экономия ~{formatCurrency(savings)})</Text>
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="Рейтинг">
+          <Tag color={recommendedConfig.ratingScore >= 75 ? 'success' : recommendedConfig.ratingScore >= 50 ? 'blue' : 'warning'}>
+            {recommendedConfig.ratingScore}/100 — {recommendedConfig.ratingLabel}
+          </Tag>
+          {typeof currentScore === 'number' && currentScore < recommendedConfig.ratingScore && (
+            <Text type="secondary"> (сейчас {currentScore}/100)</Text>
+          )}
+        </Descriptions.Item>
+        <Descriptions.Item label="Производительность" span={2}>
+          ~{formatNumber(recommendedConfig.totalEffectiveTokensPerSec, 0)} tok/s
+        </Descriptions.Item>
+      </Descriptions>
+    </Card>
+  );
+};
+
 /**
  * Компонент панели результатов
  */
-const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, performanceWarning, findCheapestHardwareConfig, isFindingConfig, cheapestConfigs, findError }) => {
+const ResultsPanel = ({
+  results,
+  formData,
+  modelSizeError,
+  configWarnings,
+  performanceWarning,
+  findCheapestHardwareConfig,
+  isFindingConfig,
+  cheapestConfigs,
+  findError,
+  findWarning,
+  recommendedConfig,
+  isSearchingOptimal,
+  recommendedError,
+  applyRecommendedConfig,
+}) => {
   const {
     requiredGpu,
     serversRequired,
@@ -325,7 +461,16 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
           />
         )}
         
-        {/* Рейтинг конфигурации - Убедились, что он здесь */}
+        <RecommendedConfigCard
+          recommendedConfig={recommendedConfig}
+          isSearchingOptimal={isSearchingOptimal}
+          recommendedError={recommendedError}
+          applyRecommendedConfig={applyRecommendedConfig}
+          currentTco={fiveYearTco}
+          currentScore={configRating?.score}
+        />
+
+        {/* Рейтинг конфигурации */}
         <RatingDisplay rating={configRating} />
         
         <Divider style={{ marginTop: 24, marginBottom: 16 }}/>
@@ -410,13 +555,27 @@ const ResultsPanel = ({ results, formData, modelSizeError, configWarnings, perfo
                       {findError && (
                           <Alert message={findError} type="error" showIcon />
                       )}
+                      {findWarning && !findError && (
+                          <Alert message={findWarning} type="warning" showIcon style={{ marginBottom: 12 }} />
+                      )}
                       {cheapestConfigs && cheapestConfigs.length > 0 && !findError && (
                           <List
                               header={<b>Топ-{cheapestConfigs.length} самых дешевых конфигураций:</b>}
                               bordered
                               dataSource={cheapestConfigs}
                               renderItem={(item, index) => (
-                                  <List.Item>
+                                  <List.Item
+                                    actions={[
+                                      <Button
+                                        key="apply"
+                                        type="link"
+                                        size="small"
+                                        onClick={() => applyRecommendedConfig?.(item)}
+                                      >
+                                        Применить
+                                      </Button>,
+                                    ]}
+                                  >
                                       <Typography.Text>
                                           <b>{index + 1}. GPU:</b> {item.gpuName}, <b>Сервер:</b> {item.serverName} <br />
                                           <b>TCO (5 лет):</b> {formatCurrency(item.fiveYearTco)} 

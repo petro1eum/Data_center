@@ -30,6 +30,12 @@ import {
   calcFinalGpuCount,
 } from '../utils/hardwareRequirements';
 import { checkModelFitsGpu, checkConfigurationWarnings } from '../utils/validationUtils';
+import {
+  searchAllHardwareConfigs,
+  pickOptimalConfig,
+  pickCheapestConfigs,
+  isSameHardwareConfig,
+} from '../utils/configOptimizer';
 
 // Вспомогательная функция для безопасного деления
 const safeDivide = (numerator, denominator) => {
@@ -411,7 +417,8 @@ const calculateConfigurationRating = (
     return { 
         score: finalScore,
         label: finalLabel, 
-        description: finalDescription 
+        description: finalDescription,
+        issues,
     };
 };
 
@@ -785,7 +792,10 @@ export const useCalculator = () => {
   const [isFindingConfig, setIsFindingConfig] = useState(false);
   const [cheapestConfigs, setCheapestConfigs] = useState([]); // Может содержать и неоптимальные
   const [findError, setFindError] = useState(null);
-  const [findWarning, setFindWarning] = useState(null); // Новое состояние для предупреждения
+  const [findWarning, setFindWarning] = useState(null);
+  const [recommendedConfig, setRecommendedConfig] = useState(null);
+  const [isSearchingOptimal, setIsSearchingOptimal] = useState(false);
+  const [recommendedError, setRecommendedError] = useState(null);
   // -------------------------------------------------------------
   const [modelSizeError, setModelSizeError] = useState("");
   const [configWarnings, setConfigWarnings] = useState([]); 
@@ -1001,155 +1011,120 @@ export const useCalculator = () => {
     validateForm(newResults);
   }, [formData]);
 
+  const buildCurrentSearchConfig = () => ({
+    ...formData,
+    modelId: selectedModelPreset,
+    networkId: selectedNetworkPreset,
+    storageId: selectedStoragePreset,
+    ramId: selectedRamPreset,
+    softwareId: selectedSoftwarePreset,
+  });
+
+  const runConfigSearch = () => searchAllHardwareConfigs(buildCurrentSearchConfig(), performFullCalculation);
+
+  const applyRecommendedConfig = (rec) => {
+    if (!rec) return;
+    applyGpuPreset(rec.gpuKey);
+    applyServerPreset(rec.serverKey);
+    setFormData((prev) => ({ ...prev, modelParamsBitsPrecision: rec.precision }));
+  };
+
+  // Автоподбор оптимальной конфигурации при изменении модели/нагрузки
+  useEffect(() => {
+    if (!selectedModelPreset) {
+      setRecommendedConfig(null);
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      setIsSearchingOptimal(true);
+      setRecommendedError(null);
+      try {
+        const allResults = runConfigSearch();
+        const optimal = pickOptimalConfig(allResults);
+        const current = {
+          gpuKey: selectedGpuPreset,
+          serverKey: selectedServerPreset,
+          precision: formData.modelParamsBitsPrecision,
+        };
+        const currentCalc = performFullCalculation({
+          ...buildCurrentSearchConfig(),
+          gpuId: selectedGpuPreset,
+          serverId: selectedServerPreset,
+        });
+        if (optimal && !isSameHardwareConfig(current, optimal)) {
+          setRecommendedConfig({
+            ...optimal,
+            savingsVsCurrent: Math.max(0, (currentCalc?.fiveYearTco ?? 0) - optimal.fiveYearTco),
+            currentScore: currentCalc?.configRating?.score ?? 0,
+          });
+        } else {
+          setRecommendedConfig(null);
+        }
+      } catch (err) {
+        setRecommendedError(err.message);
+        setRecommendedConfig(null);
+      } finally {
+        setIsSearchingOptimal(false);
+      }
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [
+    formData.userLoadConcurrentUsers,
+    formData.userLoadTokensPerRequest,
+    formData.userLoadResponseTimeSec,
+    formData.isAgentModeEnabled,
+    formData.agentRequestPercentage,
+    formData.gpuCountMode,
+    formData.performanceMode,
+    formData.modelParamsBitsPrecision,
+    selectedModelPreset,
+    selectedGpuPreset,
+    selectedServerPreset,
+    selectedNetworkPreset,
+    selectedStoragePreset,
+    selectedRamPreset,
+    selectedSoftwarePreset,
+  ]);
+
   // --- Функция поиска самой дешевой конфигурации ---
   const findCheapestHardwareConfig = async () => {
     setIsFindingConfig(true);
     setCheapestConfigs([]);
-    let checkedConfigsCount = 0; // Счетчик проверенных комбинаций
     setFindError(null);
-    setFindWarning(null); // Сбрасываем предупреждение
-    console.log("Starting hardware search (incl. precisions)...");
-
-    const currentConfig = {
-        ...formData,
-        modelId: selectedModelPreset,
-        // Используем текущие выбранные ID для остальных пресетов как базу
-        networkId: selectedNetworkPreset,
-        storageId: selectedStoragePreset,
-        ramId: selectedRamPreset,
-        softwareId: selectedSoftwarePreset,
-    };
-    const allResults = [];
+    setFindWarning(null);
 
     try {
-        const precisionsToTry = [16, 8, 4]; // Пробуем разные точности
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const allResults = runConfigSearch();
+      const potentiallyValidResults = allResults.filter(
+        (r) => !['Ошибка VRAM', 'Нерабочая', 'Нереалистично'].includes(r.ratingLabel),
+      );
+      const acceptableResults = potentiallyValidResults.filter((r) => r.ratingScore >= 40);
 
-        for (const gpuKey in GPU_PRESETS) {
-            const gpuPreset = GPU_PRESETS[gpuKey];
-            for (const precision of precisionsToTry) {
-                console.log(`Checking GPU: ${gpuKey} (${gpuPreset.name}) @ ${precision}-bit`);
-
-                // 1. Проверка VRAM для текущей точности
-                const vramCheck = checkModelFitsGpu({
-                    modelParamsNumBillion: currentConfig.modelParamsNumBillion,
-                    modelActiveParamsBillion: currentConfig.modelActiveParamsBillion,
-                    deployVramGb: currentConfig.deployVramGb,
-                    modelParamsBitsPrecision: precision,
-                    gpuConfigVramGb: gpuPreset.vram
-                });
-                if (vramCheck.hasError) {
-                    console.log(`--> Skipping GPU ${gpuKey} @ ${precision}-bit: VRAM error`);
-                    continue; // Пропускаем эту точность для данного GPU
-                }
-
-                // 2. Проверка производительности для текущей точности
-                const perfCheck = getEstimatedTokensPerSec(currentConfig.modelId, gpuKey, precision);
-                if (perfCheck.tps === null) {
-                    console.log(`--> Skipping GPU ${gpuKey} @ ${precision}-bit: No performance data`);
-                    continue; // Пропускаем эту точность для данного GPU
-                }
-
-                // Если VRAM и Perf OK, перебираем серверы
-                for (const serverKey in SERVER_PRESETS) {
-                    const serverPreset = SERVER_PRESETS[serverKey];
-                    checkedConfigsCount++;
-
-                    const tempConfigData = {
-                        ...currentConfig,
-                        gpuId: gpuKey,
-                        serverId: serverKey,
-                        modelParamsBitsPrecision: precision, // Используем текущую точность
-                        // Передаем явные значения для выбранной тройки GPU+Server+Precision
-                        gpuConfigModel: gpuPreset.name,
-                        gpuConfigCostUsd: gpuPreset.cost,
-                        gpuConfigPowerKw: gpuPreset.power,
-                        gpuConfigVramGb: gpuPreset.vram,
-                        serverConfigNumGpuPerServer: serverPreset.gpuCount,
-                        serverConfigCostUsd: serverPreset.cost,
-                        serverConfigPowerOverheadKw: serverPreset.power,
-                        // Остальные пресеты берем из currentConfig
-                        networkCostPerPort: NETWORK_PRESETS[currentConfig.networkId]?.costPerPort,
-                        storageCostPerGB: STORAGE_PRESETS[currentConfig.storageId]?.costPerGB,
-                        ramCostPerGB: RAM_PRESETS[currentConfig.ramId]?.costPerGB,
-                        annualSoftwareCostPerServer: SOFTWARE_PRESETS[currentConfig.softwareId]?.annualCostPerServer,
-                        annualSoftwareCostPerGpu: SOFTWARE_PRESETS[currentConfig.softwareId]?.annualCostPerGpu,
-                    };
-
-                    const calculationResult = performFullCalculation(tempConfigData);
-
-                    // Сохраняем результат, если расчет успешен
-                    if (calculationResult && calculationResult.fiveYearTco > 0 && !isNaN(calculationResult.fiveYearTco)) {
-                        allResults.push({
-                            gpuKey,
-                            serverKey,
-                            precision: precision, // Сохраняем точность
-                            gpuName: gpuPreset.name,
-                            serverName: serverPreset.name,
-                            fiveYearTco: calculationResult.fiveYearTco,
-                            requiredGpu: calculationResult.requiredGpu,
-                            serversRequired: calculationResult.serversRequired,
-                            totalEffectiveTokensPerSec: calculationResult.totalEffectiveTokensPerSec,
-                            ratingLabel: calculationResult.configRating?.label || 'N/A',
-                            ratingScore: calculationResult.configRating?.score || 0,
-                        });
-                    }
-                    
-                    // Периодически выводим прогресс
-                    if(checkedConfigsCount % 20 === 0) { // Реже выводим лог
-                       console.log(`...checked ${checkedConfigsCount} total configs... found ${allResults.length} potential results...`);
-                    }
-
-                    // Небольшая задержка для отзывчивости UI
-                    await new Promise(resolve => setTimeout(resolve, 0)); 
-                } // end server loop
-            } // end precision loop
-            console.log(`Finished checks for GPU ${gpuKey}. Total potential results: ${allResults.length}`);
-        } // end gpu loop
-
-        console.log(`Checked ${checkedConfigsCount} total configurations.`);
-        console.log(`Filtering ${allResults.length} potential results...`);
-
-        // Фильтрация плохих рейтингов (критические ошибки)
-        const criticalLabels = ["Ошибка VRAM", "Нерабочая", "Нереалистично"];
-        const potentiallyValidResults = allResults.filter(r => !criticalLabels.includes(r.ratingLabel));
-
-        // Проверяем, есть ли конфигурации с приемлемым рейтингом
-        const MIN_ACCEPTABLE_SCORE = 40; // Порог для "Компромиссная"
-        const acceptableResults = potentiallyValidResults.filter(r => r.ratingScore >= MIN_ACCEPTABLE_SCORE);
-
-        console.log(`Found ${potentiallyValidResults.length} configurations without critical errors (Rating >= 0).`);
-        console.log(`Found ${acceptableResults.length} configurations with acceptable score (>= ${MIN_ACCEPTABLE_SCORE}).`);
-
-        if (potentiallyValidResults.length === 0) {
-            // Ни одной рабочей конфигурации не найдено
-            let errorMsg = "Не найдено ни одной конфигурации с приемлемым рейтингом (>= 40/100). ";
-            setFindError("Не найдено ни одной рабочей конфигурации для заданных параметров. Попробуйте изменить модель, точность или параметры нагрузки.");
-            setCheapestConfigs([]); // Убедимся, что список пуст
+      if (potentiallyValidResults.length === 0) {
+        setFindError(
+          'Не найдено рабочей конфигурации для заданных параметров. Измените модель, точность или нагрузку.',
+        );
+        setCheapestConfigs([]);
+      } else {
+        setCheapestConfigs(pickCheapestConfigs(allResults, 3));
+        if (acceptableResults.length === 0) {
+          setFindWarning(
+            'Нет конфигураций с рейтингом ≥ 40/100. Показаны 3 самые дешёвые рабочие, но неэффективные варианты.',
+          );
         } else {
-             // Есть рабочие конфигурации, сортируем их по TCO
-             potentiallyValidResults.sort((a, b) => a.fiveYearTco - b.fiveYearTco);
-
-             // Показываем топ-3 из рабочих, даже если они неэффективные
-             setCheapestConfigs(potentiallyValidResults.slice(0, 3));
-
-             // Если среди них нет приемлемых, устанавливаем предупреждение
-             if (acceptableResults.length === 0) {
-                 setFindWarning(`Не найдено конфигураций с рейтингом >= ${MIN_ACCEPTABLE_SCORE}/100. Показаны 3 самые дешевые из найденных рабочих, но неэффективных вариантов.`);
-       } else {
-                 setFindWarning(null); // Убираем предупреждение, если есть хорошие варианты
-             }
-
-             setFindError(null); // Убираем ошибку, если нашли рабочие варианты
+          setFindWarning(null);
         }
-
+        setFindError(null);
+      }
     } catch (error) {
-        console.error("Error finding cheapest config:", error);
-        setFindError(`Произошла ошибка при поиске: ${error.message}`);
+      setFindError(`Произошла ошибка при поиске: ${error.message}`);
     } finally {
-        setIsFindingConfig(false);
-        console.log("Hardware search finished.");
+      setIsFindingConfig(false);
     }
-};
+  };
 
   // --- Возвращаемые значения хука ---
   return {
@@ -1182,6 +1157,10 @@ export const useCalculator = () => {
     isFindingConfig,
     cheapestConfigs,
     findError,
-    findWarning
+    findWarning,
+    recommendedConfig,
+    isSearchingOptimal,
+    recommendedError,
+    applyRecommendedConfig,
   };
 };
