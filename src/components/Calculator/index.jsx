@@ -37,6 +37,10 @@ const GenAIDataCenterCalculator = () => {
                     recommendedConfig={calculator.recommendedConfig}
                     isSearchingOptimal={calculator.isSearchingOptimal}
                     recommendedError={calculator.recommendedError}
+                    optimalSearchNote={calculator.optimalSearchNote}
+                    findOptimalHardwareConfig={calculator.findOptimalHardwareConfig}
+                    setOptimizationGoal={calculator.setOptimizationGoal}
+                    optimizationGoals={calculator.OPTIMIZATION_GOALS}
                     applyRecommendedConfig={calculator.applyRecommendedConfig}
                   />,
     },

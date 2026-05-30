@@ -6,99 +6,18 @@ import { NETWORK_PRESETS } from '../data/networkPresets';
 import { STORAGE_PRESETS } from '../data/storagePresets';
 import { RAM_PRESETS } from '../data/ramPresets';
 import { SOFTWARE_PRESETS } from '../data/softwarePresets';
-import { 
-  calcCapex, 
-  calcOpex,
-  calcStorageRequirements,
-  calcNetworkRequirements,
-  calcRamRequirements,
-  getEstimatedTokensPerSec,
-  calcCloudBenchmark,
-  calcOpenRouterApiBenchmark,
-} from '../utils/calculationUtils';
-import { getCloudRateForGpu } from '../data/cloudPresets';
-import {
-  getCloudApiThroughput,
-  getOpenRouterPricing,
-  estimateAnnualTokens,
-} from '../data/openRouterBenchmarks';
-import {
-  calcUserLoadMetrics,
-  calcKvCacheGb,
-  calcKvCacheGbMinimum,
-  calcMemoryGpuRequirements,
-  calcFinalGpuCount,
-} from '../utils/hardwareRequirements';
-import { checkModelFitsGpu, checkConfigurationWarnings } from '../utils/validationUtils';
+import { checkConfigurationWarnings } from '../utils/validationUtils';
 import {
   searchAllHardwareConfigs,
   pickOptimalConfig,
   pickCheapestConfigs,
   isSameHardwareConfig,
+  filterWorkableResults,
+  OPTIMIZATION_GOALS,
 } from '../utils/configOptimizer';
+import { performFullCalculation } from '../engine/fullCalculation';
 
-// Вспомогательная функция для безопасного деления
-const safeDivide = (numerator, denominator) => {
-    if (denominator === 0 || !denominator || isNaN(denominator) || numerator === null || numerator === undefined || isNaN(numerator)) return 0;
-    return numerator / denominator;
-};
-
-// Вспомогательная функция форматирования валюты (вынесена наружу для инициализации)
-const formatCurrency = (num) => {
-    if (num === null || num === undefined || isNaN(num)) return 'N/A';
-    const formatter = new Intl.NumberFormat('en-US', { 
-        style: 'currency', 
-        currency: 'USD', 
-        maximumFractionDigits: 0,
-        minimumFractionDigits: 0, 
-    });
-    return formatter.format(Math.round(num)); 
-};
-
-// --- Вспомогательные функции для поиска альтернатив ---
-const findCheaperGpus = (currentCost, modelId, precision, limit = 2) => {
-    return Object.entries(GPU_PRESETS)
-        .filter(([gpuKey, gpu]) => {
-            const perf = getEstimatedTokensPerSec(modelId, gpuKey, precision);
-            return gpu.cost < currentCost && perf && perf > 0;
-        })
-        .sort(([, a], [, b]) => a.cost - b.cost)
-        .slice(0, limit)
-        .map(([key, gpu]) => `${gpu.name} (${formatCurrency(gpu.cost)})`)
-        .join(' или ');
-};
-
-const findMoreEfficientGpus = (currentPower, modelId, precision, limit = 2) => {
-    return Object.entries(GPU_PRESETS)
-        .filter(([gpuKey, gpu]) => {
-            const perf = getEstimatedTokensPerSec(modelId, gpuKey, precision);
-            return gpu.power < currentPower && perf && perf > 0;
-        })
-        .sort(([, a], [, b]) => a.power - b.power)
-        .slice(0, limit)
-        .map(([key, gpu]) => `${gpu.name} (${gpu.power}кВт)`)
-        .join(' или ');
-};
-
-const findGpusWithMoreVram = (currentVram, modelId, precision, limit = 2) => {
-    return Object.entries(GPU_PRESETS)
-        .filter(([gpuKey, gpu]) => {
-            return gpu.vram > currentVram;
-        })
-        .sort(([, a], [, b]) => a.vram - b.vram)
-        .slice(0, limit)
-        .map(([key, gpu]) => `${gpu.name} (${gpu.vram}GB)`)
-        .join(' или ');
-};
-
-const findServersWithFewerSlots = (currentSlots) => {
-     const options = Object.entries(SERVER_PRESETS)
-        .filter(([_, server]) => server.gpuCount < currentSlots && server.gpuCount > 0)
-        .map(([key, server]) => `${server.gpuCount} слотов`);
-    return [...new Set(options)].join(' или '); // Уникальные значения
-};
-
-// --- Определяем рекомендуемые ключи ВНЕ хука --- 
+// --- Определяем рекомендуемые ключи ВНЕ хука ---
 const recKeys = {
     model: 'deepseek-v4-flash',
     gpu: Object.keys(GPU_PRESETS).find(key => GPU_PRESETS[key].recommended) || Object.keys(GPU_PRESETS)[0],
@@ -158,6 +77,7 @@ const getInitialFormData = () => {
         gpuCountMode: 'production',
         performanceMode: 'onprem_peak',
         cloudProviderId: 'lambda',
+        optimizationGoal: 'quality',
         serverPricingMode: serverPreset?.pricingMode ?? 'barebone',
         serverTotalPowerKw: serverPreset?.totalPowerKw ?? null,
         serverTotalGpuVramGb: serverPreset?.totalGpuVramGb ?? null,
@@ -165,585 +85,6 @@ const getInitialFormData = () => {
     };
 };
 
-/**
- * Расчет рейтинга конфигурации (v1.5 - Ребалансировка весов и конкретные рекомендации)
- * @param {string} modelId - ID текущей модели (для поиска альтернатив)
- * @returns {Object} - Рейтинг { score: number, label: string, description: string }
- */
-const calculateConfigurationRating = (
-    formData,
-    results,
-    modelSizeError,
-    performanceWarning,
-    performanceIsEstimated,
-    modelId
-) => {
-    let score = 50; // Стартовый балл
-    let issues = []; // Список проблем и рекомендаций
-    let finalLabel = "Удовлетворительная"; // Метка по умолчанию
-    let finalDescription = "";
-    let hasCriticalIssue = false;
-    let performanceUncertain = !!performanceWarning;
-    let isEstimatedOnly = !performanceWarning && performanceIsEstimated;
-
-    // Целевые показатели (примерные)
-    const TARGET_TCO_PER_TOKEN = 5e-9; // 5 н$/токен
-    const HIGH_TCO_PER_TOKEN = 5e-8;   // 50 н$/токен
-    const TARGET_POWER_PER_TOKEN = 0.5; // 0.5 Вт / (Токен/с)
-    const HIGH_POWER_PER_TOKEN = 1.0;  // 1.0 Вт / (Токен/с)
-    const TARGET_GPU_UTILIZATION = 0.7; // 70%
-    const LOW_GPU_UTILIZATION = 0.4;    // 40%
-    const EXCESSIVE_TCO_FACTOR = 5;     // TCO считается чрезмерной, если в EXCESSIVE_TCO_FACTOR раз выше "разумной" оценки
-
-    if (!results || !formData) {
-        return { score: 0, label: 'Ошибка', description: 'Ошибка расчета рейтинга (нет данных).' };
-    }
-
-    // Деструктуризация
-    const { 
-        fiveYearTco = 0, 
-        totalEffectiveTokensPerSec = 0,
-        requiredGpu = 0,
-        serversRequired = 0,
-        powerConsumptionKw = 0
-    } = results;
-    const { 
-        gpuConfigModel = "", 
-        gpuConfigCostUsd = 0,
-        gpuConfigPowerKw = 0,
-        gpuConfigVramGb = 0, 
-        serverConfigNumGpuPerServer = 0,
-        modelParamsNumBillion = 0,
-        modelParamsBitsPrecision = 0,
-        userLoadConcurrentUsers = 0,
-        userLoadResponseTimeSec = 1,
-        isAgentModeEnabled = false,
-        agentRequestPercentage = 0,
-        userLoadTokensPerRequest = 0,
-        avgAgentsPerTask = 0,
-        avgLlmCallsPerAgent = 0,
-        avgToolCallsPerAgent = 0,
-        avgAgentLlmTokens = 0,
-        avgExternalToolCost = 0
-     } = formData;
-     const precision = modelParamsBitsPrecision;
-
-    // Расчет требуемой производительности (для оценки масштаба TCO)
-    const loadMetrics = calcUserLoadMetrics(formData);
-    const {
-        totalTokensPerSecRequired,
-        totalLlmCallsPerSecond,
-        totalToolCallsPerSecond,
-        annualExternalToolCost,
-    } = loadMetrics;
-
-    // --- 1. Проверка КРИТИЧЕСКИХ проблем --- 
-    if (modelSizeError) {
-        score = 5;
-        let recommendation = `РЕКОМЕНДАЦИЯ: Выберите GPU с большим VRAM`;
-        const betterGpus = findGpusWithMoreVram(gpuConfigVramGb, modelId, precision);
-        if (betterGpus) {
-            recommendation += ` (например, ${betterGpus})`;
-        }
-        recommendation += ` или используйте модель/точность с меньшими требованиями. Текущая (${modelParamsNumBillion}B @ ${modelParamsBitsPrecision}bit) требует > ${gpuConfigVramGb}GB.`;
-        issues.push({ type: 'critical', text: `**Критично: Модель не помещается в VRAM** GPU (${gpuConfigModel} ${gpuConfigVramGb}GB). ${recommendation}` });
-        finalLabel = "Ошибка VRAM";
-        hasCriticalIssue = true;
-    } else if (totalEffectiveTokensPerSec <= 0 && fiveYearTco > 0 && !performanceUncertain) {
-        score = 10; 
-        issues.push({ type: 'warning', text: `Нулевая расчетная производительность при ненулевой TCO (${formatCurrency(fiveYearTco)}). РЕКОМЕНДАЦИЯ: Проверьте параметры нагрузки, модель и GPU.` });
-        finalLabel = "Нерабочая";
-        hasCriticalIssue = true;
-    } else if (totalEffectiveTokensPerSec <= 0 && fiveYearTco <= 0 && !performanceUncertain) {
-        score = 20; 
-        issues.push({ type: 'info', text: "Нулевая производительность и нулевая TCO. Конфигурация не используется или нагрузка равна нулю." });
-        finalLabel = "Неактивная";
-        hasCriticalIssue = true;
-    }
-
-    // --- 2. Оценка НЕКРИТИЧЕСКИХ аспектов (если нет критических проблем) --- 
-    if (!hasCriticalIssue) {
-        // 2.0 Проверка на чрезмерную абсолютную TCO
-        // Оценим "разумную" TCO: $100k на каждые 10k требуемых токен/с (очень грубо)
-        const reasonableTcoEstimate = Math.max(10000, (totalTokensPerSecRequired / 10000) * 100000);
-        if (totalTokensPerSecRequired > 0 && fiveYearTco > reasonableTcoEstimate * EXCESSIVE_TCO_FACTOR) {
-            score -= 35;
-            const cheaperGpus = findCheaperGpus(gpuConfigCostUsd, modelId, precision);
-            let recommendation = `РЕКОМЕНДАЦИЯ: Рассмотрите значительно менее дорогую конфигурацию.`;
-            if (cheaperGpus) {
-                recommendation += ` Например, GPU ${cheaperGpus} (но проверьте производительность и VRAM).`;
-            }
-            issues.push({ type: 'warning', text: `**Несоразмерно высокая TCO** (${formatCurrency(fiveYearTco)}) для требуемой производительности (~${totalTokensPerSecRequired.toFixed(0)} Токен/с). Ожидаемый порядок TCO ~${formatCurrency(reasonableTcoEstimate)}. ${recommendation}` });
-        } else if (totalTokensPerSecRequired > 0 && fiveYearTco > reasonableTcoEstimate * (EXCESSIVE_TCO_FACTOR / 2)) {
-            score -= 15;
-            issues.push({ type: 'warning', text: `Высокая абсолютная TCO (${formatCurrency(fiveYearTco)}) для требуемой производительности (~${totalTokensPerSecRequired.toFixed(0)} Токен/с). Возможно, есть более дешевые варианты GPU/серверов.` });
-        }
-
-        // 2.1 Эффективность TCO — по требуемой нагрузке, не по избыточной мощности
-        if (!performanceUncertain && fiveYearTco > 0 && totalEffectiveTokensPerSec > 0) {
-            const throughputForCost = totalTokensPerSecRequired > 0
-              ? totalTokensPerSecRequired
-              : totalEffectiveTokensPerSec;
-            const secondsIn5Years = 5 * 365 * 24 * 3600;
-            const totalTokensIn5Years = throughputForCost * secondsIn5Years;
-            const tcoPerToken = safeDivide(fiveYearTco, totalTokensIn5Years);
-            if (tcoPerToken > 0) {
-                const tcoPerTokenNano = tcoPerToken * 1e9;
-                if (tcoPerToken < TARGET_TCO_PER_TOKEN / 2) score += 15; // Отлично
-                else if (tcoPerToken < TARGET_TCO_PER_TOKEN) score += 7;  // Хорошо
-                else if (tcoPerToken > HIGH_TCO_PER_TOKEN) {
-                    score -= 25;
-                    const cheaperGpus = findCheaperGpus(gpuConfigCostUsd, modelId, precision);
-                    let recommendation = `РЕКОМЕНДАЦИЯ: Рассмотрите более экономичные GPU/модели (цель < ${TARGET_TCO_PER_TOKEN * 1e9} н$/токен).`;
-                    if (cheaperGpus) {
-                        recommendation += ` Например, ${cheaperGpus} (оцените производительность).`;
-                    }
-                    issues.push({ type: 'warning', text: `**Очень высокая стоимость TCO/токен** (${tcoPerTokenNano.toFixed(2)} н$/токен). ${recommendation}` });
-                } else if (tcoPerToken > TARGET_TCO_PER_TOKEN * 2) {
-                    score -= 12;
-                    const cheaperGpus = findCheaperGpus(gpuConfigCostUsd, modelId, precision);
-                    let recommendation = `(цель < ${TARGET_TCO_PER_TOKEN * 1e9} н$/токен).`;
-                    if (cheaperGpus) {
-                        recommendation += ` Возможно, подойдут ${cheaperGpus}?`;
-                    }
-                    issues.push({ type: 'recommendation', text: `Повышенная стоимость TCO/токен (${tcoPerTokenNano.toFixed(2)} н$/токен). ${recommendation}` });
-                }
-            } else {
-                issues.push({ type: 'info', text: "Не удалось рассчитать TCO на токен." });
-            }
-        } else if (fiveYearTco <= 0 && totalEffectiveTokensPerSec > 0 && !performanceUncertain) {
-            // Если производительность есть, а TCO нет - это супер!
-            score += 30;
-            issues.push({ type: 'info', text: "Нулевая TCO при наличии производительности. Очень экономично." });
-        }
-
-        // 2.2 Низкая утилизация GPU
-        if (serversRequired > 0 && serverConfigNumGpuPerServer > 0 && requiredGpu > 0) {
-            const avgGpuPerServer = safeDivide(requiredGpu, serversRequired);
-            const utilization = safeDivide(avgGpuPerServer, serverConfigNumGpuPerServer);
-            if (utilization < LOW_GPU_UTILIZATION) { 
-                score -= 15; 
-                const fewerSlotsServers = findServersWithFewerSlots(serverConfigNumGpuPerServer);
-                let recommendation = `РЕКОМЕНДАЦИЯ: Увеличьте нагрузку или используйте серверы с меньшим числом GPU (цель > ${TARGET_GPU_UTILIZATION*100}%).`;
-                if (fewerSlotsServers) {
-                    recommendation += ` Доступны конфигурации на ${fewerSlotsServers} (проверьте общую производительность).`;
-                }
-                issues.push({ type: 'warning', text: `**Очень низкая утилизация GPU** (${Math.round(utilization * 100)}%). ${recommendation}` });
-            } else if (utilization < TARGET_GPU_UTILIZATION) {
-                score -= 7;
-                issues.push({ type: 'warning', text: `Неоптимальная утилизация GPU (${Math.round(utilization * 100)}%). Цель > ${TARGET_GPU_UTILIZATION*100}%.` });
-            } else {
-                score += 5; // Небольшой бонус за хорошую утилизацию
-            }
-        }
-
-        // 2.3 Энергоэффективность — по требуемой нагрузке
-        if (!performanceUncertain && powerConsumptionKw > 0 && totalEffectiveTokensPerSec > 0) {
-            const throughputForPower = totalTokensPerSecRequired > 0
-              ? totalTokensPerSecRequired
-              : totalEffectiveTokensPerSec;
-            const wattPerTokenPerSec = safeDivide(powerConsumptionKw * 1000, throughputForPower);
-            if (wattPerTokenPerSec > HIGH_POWER_PER_TOKEN) {
-                 score -= 15; 
-                 const efficientGpus = findMoreEfficientGpus(gpuConfigPowerKw, modelId, precision);
-                 let recommendation = `РЕКОМЕНДАЦИЯ: Рассмотрите более энергоэффективные GPU (цель < ${TARGET_POWER_PER_TOKEN} Вт/(Токен/с)).`;
-                 if (efficientGpus) {
-                     recommendation += ` Например, ${efficientGpus} (оцените их стоимость и производительность).`;
-                 }
-                 issues.push({ type: 'warning', text: `**Очень высокое энергопотребление/производительность** (${wattPerTokenPerSec.toFixed(2)} Вт/(Токен/с)). ${recommendation}` });
-            } else if (wattPerTokenPerSec > TARGET_POWER_PER_TOKEN) {
-                 score -= 7; 
-                 issues.push({ type: 'warning', text: `Повышенное энергопотребление/производительность (${wattPerTokenPerSec.toFixed(2)} Вт/(Токен/с)). Цель < ${TARGET_POWER_PER_TOKEN} Вт/(Токен/с).` });
-            } else {
-                score += 5; // Небольшой бонус за энергоэффективность
-            }
-        } else if (powerConsumptionKw > 0 && totalEffectiveTokensPerSec <= 0 && !performanceUncertain) { 
-            // Потребление есть, производительности нет
-            score -= 15;
-            issues.push({ type: 'warning', text: "Энергопотребление без подтвержденной производительности." });
-        }
-    }
-
-    // --- 3. Обработка НЕОПРЕДЕЛЕННОСТИ производительности --- 
-    if (performanceUncertain) {
-        // Уменьшаем влияние неопределенности на оценку, но указываем на нее
-        // Не будем сильно снижать балл, если других проблем нет
-        if (!hasCriticalIssue && score >= 60) {
-             finalLabel = "Требует уточнения"; // Меняем метку, если оценка была хорошей
-        }
-        issues.push({ type: 'warning', text: `(${performanceWarning}) Оценка TCO и энергоэффективности может быть неточной.` });
-        // Можно добавить небольшой штраф, если были и другие проблемы
-        if (issues.length > 1) { 
-            score -= 5;
-        }
-    } else if (isEstimatedOnly) {
-        finalLabel += " (оценка)";
-        issues.push({ type: 'info', text: "(Производительность GPU оценена приблизительно, реальные значения могут отличаться.)" });
-        score -= 2;
-    }
-
-    // --- 4. Финальная корректировка и определение метки/описания --- 
-    score = Math.max(0, Math.min(100, Math.round(score)));
-
-    // Переопределяем метку на основе итогового балла, ЕСЛИ она не была установлена в критическую ошибку
-    if (!hasCriticalIssue) { 
-        if (score >= 85) finalLabel = "Отличная";        // Повышены пороги
-        else if (score >= 65) finalLabel = "Хорошая";         // Повышены пороги
-        else if (score >= 40) finalLabel = "Компромиссная";   // Раньше было Удовлетворительная
-        else finalLabel = "Неэффективная"; // Сюда попадут низкие баллы, включая 0
-    }
-
-    // Добавляем флаг оценки к ЛЮБОЙ метке, если применимо
-    if (isEstimatedOnly && !hasCriticalIssue) { // Не добавляем к критическим ошибкам
-        finalLabel += " (оценка)";
-    }
-
-    // Формируем описание
-    if (issues.length > 0) {
-        // Сортируем проблемы: критические -> неэффективность -> остальные
-        const typeOrder = { critical: 0, warning: 1, info: 2, recommendation: 3 };
-        issues.sort((a, b) => {
-            // Убедимся, что у нас есть text свойство
-            const typeA = a && typeof a === 'object' ? a.type : 'unknown'; 
-            const typeB = b && typeof b === 'object' ? b.type : 'unknown'; 
-            return (typeOrder[typeA] ?? 99) - (typeOrder[typeB] ?? 99);
-        });
-        finalDescription = issues
-            .map(issue => (issue && typeof issue === 'object' && issue.text) ? `- ${issue.text}` : '- (Некорректная запись об ошибке)')
-            .join('\n');
-    } else {
-        // Описания по умолчанию для хороших оценок
-        if (score >= 85) finalDescription = "Отличная конфигурация: высокая производительность и хорошая эффективность затрат.";
-        else if (score >= 65) finalDescription = "Хороший баланс производительности, стоимости и эффективности.";
-        else finalDescription = "Конфигурация рабочая, но есть возможности для оптимизации.";
-    }
-
-    const finalScore = isNaN(score) ? 0 : score;
-
-    return { 
-        score: finalScore,
-        label: finalLabel, 
-        description: finalDescription,
-        issues,
-    };
-};
-
-// --- Основная ЧИСТАЯ функция расчета --- 
-// Принимает все необходимые данные и возвращает полный объект результатов
-const performFullCalculation = (configData) => {
-    const {
-        modelId,
-        gpuId,
-        serverId,
-        networkId,
-        storageId,
-        ramId,
-        softwareId,
-        modelParamsNumBillion,
-        modelParamsBitsPrecision,
-        userLoadConcurrentUsers,
-        userLoadTokensPerRequest,
-        userLoadResponseTimeSec,
-        gpuConfigCostUsd,
-        gpuConfigPowerKw,
-        gpuConfigVramGb,
-        serverConfigNumGpuPerServer,
-        serverConfigCostUsd,
-        serverConfigPowerOverheadKw,
-        networkCostPerPort,
-        storageCostPerGB,
-        ramCostPerGB,
-        annualSoftwareCostPerServer,
-        annualSoftwareCostPerGpu,
-        dcCostsElectricityCostUsdPerKwh,
-        dcCostsPue,
-        dcCostsAnnualMaintenanceRate,
-        batchingOptimizationFactor,
-        isAgentModeEnabled,
-        avgAgentsPerTask,
-        avgLlmCallsPerAgent,
-        avgToolCallsPerAgent,
-        avgAgentLlmTokens,
-        avgExternalToolCost,
-        agentRequestPercentage
-    } = configData;
-
-    const MAX_REASONABLE_GPU = 1_000_000; // Максимальное разумное количество GPU
-    const precision = parseInt(modelParamsBitsPrecision, 10);
-
-    const perfResult = getEstimatedTokensPerSec(modelId, gpuId, precision, {
-      performanceMode: configData.performanceMode ?? 'onprem_peak',
-    });
-    const estimatedTokensPerSecPerGpuBase = perfResult.tps;
-    let performanceIsEstimated = perfResult.estimated;
-    let performanceWarning = null;
-    const cloudApiMeta = getCloudApiThroughput(modelId);
-    const onPremPerf = configData.performanceMode === 'cloud_api'
-      ? getEstimatedTokensPerSec(modelId, gpuId, precision, { performanceMode: 'onprem_peak' })
-      : null;
-
-    if (estimatedTokensPerSecPerGpuBase === null) {
-        performanceWarning = `Не удалось оценить производительность для ${MODEL_PRESETS[modelId]?.name} на ${GPU_PRESETS[gpuId]?.name} @ ${precision}-бит.`;
-        // Возвращаем ранний результат с ошибкой, чтобы поиск мог это отфильтровать
-        return {
-             requiredGpu: Infinity, // Индикатор проблемы
-             serversRequired: 0,
-             capexUsd: 0,
-             annualOpexUsd: 0,
-             powerConsumptionKw: 0,
-             annualEnergyKwh: 0,
-             energyCostAnnual: 0,
-             maintenanceCostAnnual: 0,
-             fiveYearTco: 0,
-             totalGpuCost: 0,
-             totalServerCost: 0,
-             storageRequirementsGB: 0,
-             storageCostUsd: 0,
-             networkType: NETWORK_PRESETS[networkId]?.type || "",
-             networkCost: 0,
-             ramRequirementPerServerGB: 0,
-             totalRamCost: 0,
-             annualExternalToolCost: 0,
-             totalLlmCallsPerSecond: 0,
-             totalToolCallsPerSecond: 0,
-             annualSoftwareCost: 0,
-             estimatedTokensPerSecPerGpu: null,
-             totalEffectiveTokensPerSec: 0,
-             configRating: calculateConfigurationRating(configData, null, null, performanceWarning, performanceIsEstimated, modelId),
-             modelSizeError: null,
-             performanceWarning: performanceWarning,
-             performanceIsEstimated: performanceIsEstimated
-        };
-    }
-
-    const effectiveTokensPerSecPerGpu = estimatedTokensPerSecPerGpuBase * batchingOptimizationFactor;
-
-    // GPU count / CapEx — всегда по on-prem peak; cloud_api только для SLA-метрик
-    const tpsForGpuSizing = (configData.performanceMode === 'cloud_api' && onPremPerf?.tps)
-      ? onPremPerf.tps * batchingOptimizationFactor
-      : effectiveTokensPerSecPerGpu;
-
-    const loadMetrics = calcUserLoadMetrics(configData);
-    const {
-        totalTokensPerSecRequired,
-        totalLlmCallsPerSecond,
-        totalToolCallsPerSecond,
-        annualExternalToolCost,
-    } = loadMetrics;
-
-    const kvCacheGb = calcKvCacheGb(configData, loadMetrics.avgContextTokensPerSession);
-    const kvCacheGbMinimum = calcKvCacheGbMinimum(configData);
-    const gpuCountMode = configData.gpuCountMode ?? 'production';
-    const memoryReq = calcMemoryGpuRequirements(
-      configData,
-      gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
-    );
-    const serverPreset = SERVER_PRESETS[serverId] ?? {};
-    const gpuCountResult = calcFinalGpuCount({
-        totalTokensPerSecRequired,
-        effectiveTokensPerSecPerGpu: tpsForGpuSizing,
-        gpusPerReplica: memoryReq.gpusPerReplica,
-        minGpusForMemory: memoryReq.minGpusForMemory,
-        gpuCountMode,
-        deployGpuCount: configData.deployGpuCount,
-        serverPricingMode: configData.serverPricingMode ?? serverPreset.pricingMode ?? 'barebone',
-        serverGpuCount: configData.serverConfigNumGpuPerServer ?? serverPreset.gpuCount ?? 8,
-        totalGpuVramGb: configData.serverTotalGpuVramGb ?? serverPreset.totalGpuVramGb,
-        weightGb: memoryReq.weightGb,
-        kvCacheGb: gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
-    });
-    const numGpu = gpuCountResult.numGpu;
-
-    // --- Проверка на нереалистичное количество GPU --- 
-    if (!Number.isFinite(numGpu) || numGpu > MAX_REASONABLE_GPU) {
-        const unrealisticGpuValue = Number.isFinite(numGpu) ? `> ${MAX_REASONABLE_GPU}` : 'неопределенно';
-        const realisticWarning = `Требуемое количество GPU (${unrealisticGpuValue}) нереалистично.`;
-         return {
-             requiredGpu: Number.isFinite(numGpu) ? numGpu : Infinity,
-             serversRequired: 0,
-             capexUsd: 0,
-             annualOpexUsd: 0,
-             powerConsumptionKw: 0,
-             annualEnergyKwh: 0,
-             energyCostAnnual: 0,
-             maintenanceCostAnnual: 0,
-             fiveYearTco: 0,
-             totalGpuCost: 0,
-             totalServerCost: 0,
-             storageRequirementsGB: 0,
-             storageCostUsd: 0,
-             networkType: NETWORK_PRESETS[networkId]?.type || "",
-             networkCost: 0,
-             ramRequirementPerServerGB: 0,
-             totalRamCost: 0,
-             annualExternalToolCost: annualExternalToolCost,
-             totalLlmCallsPerSecond: totalLlmCallsPerSecond,
-             totalToolCallsPerSecond: totalToolCallsPerSecond,
-             annualSoftwareCost: 0,
-             estimatedTokensPerSecPerGpu: estimatedTokensPerSecPerGpuBase,
-             totalEffectiveTokensPerSec: 0,
-             configRating: calculateConfigurationRating(configData, null, null, realisticWarning, performanceIsEstimated, modelId),
-             modelSizeError: null,
-             performanceWarning: realisticWarning,
-             performanceIsEstimated: performanceIsEstimated
-        };
-    }
-    // ---------------------------------------------------- 
-
-    // Используем явные значения из configData для расчетов
-    const tempFormDataForCalc = {
-        gpuConfigCostUsd, 
-        serverConfigNumGpuPerServer, 
-        serverConfigCostUsd,
-        serverPricingMode: configData.serverPricingMode,
-        serverTotalPowerKw: configData.serverTotalPowerKw,
-        gpuConfigPowerKw,
-        serverConfigPowerOverheadKw,
-        dcCostsElectricityCostUsdPerKwh,
-        dcCostsPue,
-        dcCostsAnnualMaintenanceRate,
-        annualSoftwareCostPerServer,
-        annualSoftwareCostPerGpu,
-        modelParamsNumBillion,
-        modelParamsBitsPrecision,
-        storageCostPerGB,
-        networkCostPerPort,
-        networkType: NETWORK_PRESETS[networkId]?.type || "",
-        gpuConfigVramGb,
-        ramCostPerGB,
-    };
-
-    const capexResult = calcCapex(numGpu, tempFormDataForCalc);
-    const serversRequired = capexResult.numServers;
-    const storageResult = calcStorageRequirements(tempFormDataForCalc, serversRequired);
-    const networkResult = calcNetworkRequirements(serversRequired, numGpu, tempFormDataForCalc);
-    const ramResult = calcRamRequirements(tempFormDataForCalc, serversRequired);
-    const totalCapex = (capexResult.totalCost ?? 0) + (networkResult.networkEquipmentCost ?? 0) + (storageResult.storageCostUsd ?? 0) + (ramResult.totalRamCost ?? 0);
-    // Передаём полный CapEx в calcOpex для расчёта обслуживания от всей инфраструктуры
-    const opexResult = calcOpex(numGpu, serversRequired, tempFormDataForCalc, annualExternalToolCost, totalCapex);
-    const fiveYearTcoCalc = totalCapex + ((opexResult.totalOpex ?? 0) * 5);
-
-    const cloudProviderId = configData.cloudProviderId ?? 'lambda';
-    let cloudBenchmark;
-
-    if (cloudProviderId === 'openrouter') {
-      const orPricing = getOpenRouterPricing(modelId);
-      const annualTokens = estimateAnnualTokens({
-        totalTokensPerSecRequired: loadMetrics.totalTokensPerSecRequired,
-      });
-      cloudBenchmark = calcOpenRouterApiBenchmark({
-        annualTokens,
-        blendedUsdPerM: orPricing?.blendedPerM ?? 0,
-        onPremCapex: totalCapex,
-        onPremAnnualOpex: opexResult.totalOpex,
-      });
-      cloudBenchmark = {
-        ...cloudBenchmark,
-        cloudGpuRatePerHour: null,
-        cloudAnnualUsd: cloudBenchmark.openRouterAnnualUsd,
-        cloudFiveYearTco: cloudBenchmark.openRouterFiveYearTco,
-        openRouterProvider: orPricing?.provider ?? null,
-        isOpenRouterApi: true,
-      };
-    } else {
-      const cloudRate = getCloudRateForGpu(gpuId, cloudProviderId);
-      cloudBenchmark = {
-        ...calcCloudBenchmark(numGpu, cloudRate, totalCapex, opexResult.totalOpex),
-        isOpenRouterApi: false,
-      };
-    }
-
-    const apiStreamsForThroughput = (configData.performanceMode === 'cloud_api' && perfResult.tps > 0)
-      ? Math.ceil(totalTokensPerSecRequired / perfResult.tps)
-      : null;
-
-    if (configData.performanceMode === 'cloud_api' && perfResult.source === 'cloud_api') {
-      performanceWarning = `Cloud API режим: ${perfResult.tps} tok/s (median, ${perfResult.cloudProvider ?? 'OR'}). On-prem peak: ${onPremPerf?.tps ?? '?'} tok/s/GPU. CapEx считается по on-prem.`;
-    }
-    
-    const intermediateResults = {
-      requiredGpu: numGpu ?? 0,
-      productionGpu: gpuCountResult.productionGpu ?? numGpu,
-      minimumDeployGpu: gpuCountResult.minimumDeployGpu ?? memoryReq.gpusPerReplica,
-      gpuCountMode,
-      serversRequired: serversRequired ?? 0,
-      capexUsd: totalCapex ?? 0,
-      annualOpexUsd: opexResult.totalOpex ?? 0,
-      powerConsumptionKw: opexResult.totalPowerKw ?? 0,
-      annualEnergyKwh: opexResult.annualEnergyKwh ?? 0,
-      energyCostAnnual: opexResult.energyCost ?? 0,
-      maintenanceCostAnnual: opexResult.maintenanceCost ?? 0,
-      fiveYearTco: fiveYearTcoCalc ?? 0,
-      totalGpuCost: capexResult.totalGpuCost ?? 0,
-      totalServerCost: capexResult.totalServerCost ?? 0,
-      storageRequirementsGB: storageResult.totalStorageGB ?? 0,
-      storageCostUsd: storageResult.storageCostUsd ?? 0,
-      networkType: tempFormDataForCalc.networkType,
-      networkCost: networkResult.networkEquipmentCost ?? 0,
-      ramRequirementPerServerGB: ramResult.recommendedRamPerServer ?? 0,
-      totalRamCost: ramResult.totalRamCost ?? 0,
-      annualExternalToolCost: annualExternalToolCost ?? 0,
-      totalLlmCallsPerSecond: totalLlmCallsPerSecond ?? 0,
-      totalToolCallsPerSecond: totalToolCallsPerSecond ?? 0,
-      annualSoftwareCost: opexResult.annualSoftwareCost ?? 0,
-      estimatedTokensPerSecPerGpu: estimatedTokensPerSecPerGpuBase, 
-      onPremTokensPerSecPerGpu: onPremPerf?.tps ?? estimatedTokensPerSecPerGpuBase,
-      totalEffectiveTokensPerSec: numGpu > 0 ? (tpsForGpuSizing * numGpu) : 0,
-      cloudApiTps: cloudApiMeta?.median ?? perfResult.cloudBest ?? null,
-      cloudApiBestTps: cloudApiMeta?.best ?? null,
-      cloudApiProvider: cloudApiMeta?.provider ?? perfResult.cloudProvider ?? null,
-      performanceMode: configData.performanceMode ?? 'onprem_peak',
-      performanceSource: perfResult.source ?? 'onprem_peak',
-      apiStreamsForThroughput,
-      cloudProviderId,
-      totalTokensPerSecRequired,
-      gpusPerReplica: memoryReq.gpusPerReplica,
-      gpuCountForThroughput: gpuCountResult.gpuCountForThroughput,
-      gpuCountForMemory: memoryReq.minGpusForMemory,
-      modelWeightGb: memoryReq.weightGb,
-      kvCacheGb: gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
-      kvCacheGbMinimum,
-      ...cloudBenchmark,
-    };
-
-    // Проверка VRAM с использованием явных данных
-    const modelFitResult = checkModelFitsGpu({ 
-        ...configData,
-        modelParamsNumBillion, 
-        modelActiveParamsBillion: configData.modelActiveParamsBillion,
-        deployVramGb: configData.deployVramGb,
-        modelParamsBitsPrecision, 
-        gpuConfigVramGb,
-        userLoadConcurrentUsers: configData.userLoadConcurrentUsers,
-        userLoadTokensPerRequest: configData.userLoadTokensPerRequest,
-        userLoadResponseTimeSec: configData.userLoadResponseTimeSec,
-        isAgentModeEnabled: configData.isAgentModeEnabled,
-        agentRequestPercentage: configData.agentRequestPercentage,
-        avgAgentsPerTask: configData.avgAgentsPerTask,
-        avgLlmCallsPerAgent: configData.avgLlmCallsPerAgent,
-        avgAgentLlmTokens: configData.avgAgentLlmTokens,
-    });
-    const currentModelSizeError = modelFitResult.hasError ? modelFitResult.errorMessage : "";
-    const vramWarning = modelFitResult.warningMessage ?? "";
-
-    const rating = calculateConfigurationRating(
-        configData, // Передаем полный configData для доступа ко всем полям в рейтинге
-        intermediateResults, 
-        currentModelSizeError, 
-        performanceWarning,
-        performanceIsEstimated,
-        modelId
-    );
-
-    return {
-        ...intermediateResults,
-        configRating: rating,
-        modelSizeError: currentModelSizeError,
-        vramWarning,
-        performanceWarning: performanceWarning,
-        performanceIsEstimated: performanceIsEstimated
-    };
-};
 
 // --- Функция для расчета НАЧАЛЬНЫХ результатов на основе formData ---
 // Теперь использует performFullCalculation
@@ -802,6 +143,7 @@ export const useCalculator = () => {
   const [recommendedConfig, setRecommendedConfig] = useState(null);
   const [isSearchingOptimal, setIsSearchingOptimal] = useState(false);
   const [recommendedError, setRecommendedError] = useState(null);
+  const [optimalSearchNote, setOptimalSearchNote] = useState(null);
   // -------------------------------------------------------------
   const [modelSizeError, setModelSizeError] = useState("");
   const [configWarnings, setConfigWarnings] = useState([]); 
@@ -1037,6 +379,80 @@ export const useCalculator = () => {
 
   const runConfigSearch = () => searchAllHardwareConfigs(buildCurrentSearchConfig(), performFullCalculation);
 
+  const performOptimalConfigSearch = () => {
+    const allResults = runConfigSearch();
+    const optimal = pickOptimalConfig(allResults, formData.optimizationGoal ?? 'quality');
+    const current = {
+      gpuKey: selectedGpuPreset,
+      serverKey: selectedServerPreset,
+      precision: parseInt(formData.modelParamsBitsPrecision, 10),
+    };
+    const currentCalc = performFullCalculation({
+      ...buildCurrentSearchConfig(),
+      gpuId: selectedGpuPreset,
+      serverId: selectedServerPreset,
+    });
+
+    if (optimal && isSameHardwareConfig(current, optimal)) {
+      return {
+        config: null,
+        note: 'already_optimal',
+        appliedRating: optimal.ratingScore,
+      };
+    }
+
+    if (optimal) {
+      return {
+        config: {
+          ...optimal,
+          savingsVsCurrent: Math.max(0, (currentCalc?.fiveYearTco ?? 0) - optimal.fiveYearTco),
+          currentScore: currentCalc?.configRating?.score ?? 0,
+        },
+        note: null,
+      };
+    }
+
+    const workable = filterWorkableResults(allResults);
+    if (!workable.length) {
+      return { config: null, note: 'no_workable' };
+    }
+    return { config: null, note: 'no_acceptable' };
+  };
+
+  const findOptimalHardwareConfig = async () => {
+    if (!selectedModelPreset) {
+      setRecommendedError('Сначала выберите модель.');
+      return;
+    }
+    setIsSearchingOptimal(true);
+    setRecommendedError(null);
+    setOptimalSearchNote(null);
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      const { config, note, appliedRating } = performOptimalConfigSearch();
+      setRecommendedConfig(config);
+      if (note === 'already_optimal') {
+        setOptimalSearchNote(
+          `Текущая конфигурация уже оптимальна (рейтинг ${appliedRating ?? '?'}/100).`,
+        );
+      } else if (note === 'no_workable') {
+        setOptimalSearchNote(
+          'Не найдено рабочей конфигурации. Измените модель, точность или нагрузку.',
+        );
+      } else if (note === 'no_acceptable') {
+        setOptimalSearchNote(
+          'Не найдено конфигураций с рейтингом ≥ 40/100. Показаны лучшие из рабочих — проверьте нагрузку и модель.',
+        );
+      }
+    } catch (err) {
+      setRecommendedError(err.message);
+      setRecommendedConfig(null);
+      setOptimalSearchNote(null);
+    } finally {
+      setIsSearchingOptimal(false);
+    }
+  };
+
   const applyRecommendedConfig = (rec) => {
     if (!rec?.gpuKey || !rec?.serverKey) return;
     const gpuPreset = GPU_PRESETS[rec.gpuKey];
@@ -1061,9 +477,10 @@ export const useCalculator = () => {
       serverTotalGpuVramGb: serverPreset.totalGpuVramGb ?? null,
     }));
     setRecommendedConfig(null);
+    setOptimalSearchNote(null);
   };
 
-  // Автоподбор оптимальной конфигурации при изменении модели/нагрузки
+  // Автоподбор при изменении модели/нагрузки (фоновый)
   useEffect(() => {
     if (!selectedModelPreset) {
       setRecommendedConfig(null);
@@ -1074,27 +491,8 @@ export const useCalculator = () => {
       setIsSearchingOptimal(true);
       setRecommendedError(null);
       try {
-        const allResults = runConfigSearch();
-        const optimal = pickOptimalConfig(allResults);
-        const current = {
-          gpuKey: selectedGpuPreset,
-          serverKey: selectedServerPreset,
-          precision: parseInt(formData.modelParamsBitsPrecision, 10),
-        };
-        const currentCalc = performFullCalculation({
-          ...buildCurrentSearchConfig(),
-          gpuId: selectedGpuPreset,
-          serverId: selectedServerPreset,
-        });
-        if (optimal && !isSameHardwareConfig(current, optimal)) {
-          setRecommendedConfig({
-            ...optimal,
-            savingsVsCurrent: Math.max(0, (currentCalc?.fiveYearTco ?? 0) - optimal.fiveYearTco),
-            currentScore: currentCalc?.configRating?.score ?? 0,
-          });
-        } else {
-          setRecommendedConfig(null);
-        }
+        const { config } = performOptimalConfigSearch();
+        setRecommendedConfig(config);
       } catch (err) {
         setRecommendedError(err.message);
         setRecommendedConfig(null);
@@ -1113,6 +511,7 @@ export const useCalculator = () => {
     formData.gpuCountMode,
     formData.performanceMode,
     formData.modelParamsBitsPrecision,
+    formData.optimizationGoal,
     selectedModelPreset,
     selectedGpuPreset,
     selectedServerPreset,
@@ -1121,6 +520,12 @@ export const useCalculator = () => {
     selectedRamPreset,
     selectedSoftwarePreset,
   ]);
+
+  const setOptimizationGoal = (goal) => {
+    if (OPTIMIZATION_GOALS[goal]) {
+      setFormData((prev) => ({ ...prev, optimizationGoal: goal }));
+    }
+  };
 
   // --- Функция поиска самой дешевой конфигурации ---
   const findCheapestHardwareConfig = async () => {
@@ -1195,6 +600,10 @@ export const useCalculator = () => {
     recommendedConfig,
     isSearchingOptimal,
     recommendedError,
+    optimalSearchNote,
+    findOptimalHardwareConfig,
+    setOptimizationGoal,
     applyRecommendedConfig,
+    OPTIMIZATION_GOALS,
   };
 };
