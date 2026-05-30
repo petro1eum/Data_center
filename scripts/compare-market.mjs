@@ -146,8 +146,8 @@ const scenarios = [
     marketNote: 'Supermicro/Dell 8×H100 $250–320K (Mercatus, router-switch). Lambda $3.29/GPU-hr.',
   },
   {
-    name: 'Рынок: DeepSeek-V3/R1 production (8×H200 FP8)',
-    modelId: 'deepseek-v3-671b',
+    name: 'Рынок: DeepSeek-V4 Pro production (8×H200 FP8)',
+    modelId: 'deepseek-v4-pro',
     gpuId: 'h200-141gb',
     serverId: 'dell-xe9680-b200',
     networkId: 'ib-xdr-800g',

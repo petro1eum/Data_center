@@ -11,35 +11,6 @@ const USABLE_RATIO = 0.82;
 /** Официальные / рыночные эталоны (май 2026) */
 const OFFICIAL = [
   {
-    modelId: 'qwen2.5-omni-7b',
-    label: 'Qwen2.5-Omni-7B AWQ @ 30s video',
-    source: 'Qwen GitHub README (May 2025)',
-    officialMinGb: 17.84,
-    officialGpuHint: '1× RTX 4090 / L40S',
-    gpuId: 'l40s-48gb',
-    expectMinGpus: 1,
-  },
-  {
-    modelId: 'qwen2.5-omni-7b',
-    label: 'Qwen2.5-Omni-7B BF16 @ 30s video',
-    source: 'Qwen GitHub README',
-    officialMinGb: 41.85,
-    officialGpuHint: '1× H100 80GB (×1.2 prod overhead → ~50GB)',
-    gpuId: 'h100-80gb',
-    expectMinGpus: 1,
-    overrideDeploy: 42,
-    overridePrecision: 16,
-  },
-  {
-    modelId: 'qwen2.5-vl-72b',
-    label: 'Qwen2.5-VL-72B INT8 weights',
-    source: 'Qwen2.5-VL README VRAM table',
-    officialMinGb: 66.5,
-    officialGpuHint: '2× H100 AWQ/INT8 or 4× A100 BF16',
-    gpuId: 'h100-80gb',
-    expectMinGpus: 2,
-  },
-  {
     modelId: 'qwen3-vl-8b',
     label: 'Qwen3-VL-8B FP8',
     source: 'Qwen3-VL docs / vLLM recipes',
@@ -73,15 +44,6 @@ const OFFICIAL = [
     officialMinGb: 62,
     officialGpuHint: '1× H100 80GB',
     gpuId: 'h100-80gb',
-    expectMinGpus: 1,
-  },
-  {
-    modelId: 'pixtral-12b',
-    label: 'Pixtral 12B BF16',
-    source: 'Mistral model card ~24GB',
-    officialMinGb: 24,
-    officialGpuHint: '1× L40S / RTX 4090',
-    gpuId: 'l40s-48gb',
     expectMinGpus: 1,
   },
   {
@@ -162,14 +124,14 @@ for (const ref of OFFICIAL) {
   console.log('');
 }
 
-// Cross-check: Omni BF16 60s needs ~60GB → 1 H100 tight at 82% usable
+// Cross-check: Gemma 4 E4B BF16 ~16GB → 1× L40S sufficient
 {
-  const gpu = GPU_PRESETS['h100-80gb'];
+  const gpu = GPU_PRESETS['l40s-48gb'];
   const usable = gpu.vram * USABLE_RATIO;
-  const need60s = 60.19 * 1.2;
-  const gpus = Math.ceil(need60s / usable);
-  console.log(`▸ Sanity: Omni-7B BF16 60s video (${need60s.toFixed(1)} GB with 1.2× overhead)`);
-  console.log(`  H100 usable ${usable.toFixed(1)} GB → need ${gpus} GPU(s) ${gpus === 1 ? '✓' : gpus === 2 ? '✓ (marginal on 1)' : '?'}`);
+  const needBf16 = 16 * 1.2;
+  const gpus = Math.ceil(needBf16 / usable);
+  console.log(`▸ Sanity: Gemma 4 E4B BF16 (${needBf16.toFixed(1)} GB with 1.2× overhead)`);
+  console.log(`  L40S usable ${usable.toFixed(1)} GB → need ${gpus} GPU(s) ${gpus === 1 ? '✓' : '?'}`);
 }
 
 console.log(`\n=== Result: ${passed} passed, ${failed} failed ===`);

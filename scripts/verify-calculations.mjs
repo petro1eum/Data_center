@@ -56,8 +56,8 @@ const scenarios = [
     },
   },
   {
-    name: 'Llama 3.3 70B dense / H100 / 100 users agents 10%',
-    modelId: 'llama3_3-70b',
+    name: 'Llama 4 Scout MoE / H100 / 100 users agents 10%',
+    modelId: 'llama4-scout',
     gpuId: 'h100-80gb',
     load: {
       userLoadConcurrentUsers: 100,
