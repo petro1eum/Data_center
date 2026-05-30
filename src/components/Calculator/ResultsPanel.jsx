@@ -236,7 +236,7 @@ const RecommendedConfigCard = ({
       }
     >
       <Paragraph type="secondary" style={{ marginBottom: 12 }}>
-        Система подобрала более эффективный вариант под текущую модель и нагрузку. Вы можете применить его или изменить параметры вручную.
+        Система подобрала конфигурацию с рейтингом ≥ 40/100 под текущую модель и нагрузку. После «Применить» рейтинг должен совпасть с указанным ниже.
       </Paragraph>
       <Descriptions bordered size="small" column={{ xs: 1, sm: 2 }}>
         <Descriptions.Item label="GPU">{recommendedConfig.gpuName}</Descriptions.Item>

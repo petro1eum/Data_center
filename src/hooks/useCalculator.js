@@ -279,10 +279,13 @@ const calculateConfigurationRating = (
             issues.push({ type: 'warning', text: `Высокая абсолютная TCO (${formatCurrency(fiveYearTco)}) для требуемой производительности (~${totalTokensPerSecRequired.toFixed(0)} Токен/с). Возможно, есть более дешевые варианты GPU/серверов.` });
         }
 
-        // 2.1 Эффективность TCO (Только если производительность ИЗВЕСТНА)
+        // 2.1 Эффективность TCO — по требуемой нагрузке, не по избыточной мощности
         if (!performanceUncertain && fiveYearTco > 0 && totalEffectiveTokensPerSec > 0) {
+            const throughputForCost = totalTokensPerSecRequired > 0
+              ? totalTokensPerSecRequired
+              : totalEffectiveTokensPerSec;
             const secondsIn5Years = 5 * 365 * 24 * 3600;
-            const totalTokensIn5Years = totalEffectiveTokensPerSec * secondsIn5Years;
+            const totalTokensIn5Years = throughputForCost * secondsIn5Years;
             const tcoPerToken = safeDivide(fiveYearTco, totalTokensIn5Years);
             if (tcoPerToken > 0) {
                 const tcoPerTokenNano = tcoPerToken * 1e9;
@@ -334,9 +337,12 @@ const calculateConfigurationRating = (
             }
         }
 
-        // 2.3 Энергоэффективность (Только если производительность ИЗВЕСТНА)
+        // 2.3 Энергоэффективность — по требуемой нагрузке
         if (!performanceUncertain && powerConsumptionKw > 0 && totalEffectiveTokensPerSec > 0) {
-            const wattPerTokenPerSec = safeDivide(powerConsumptionKw * 1000, totalEffectiveTokensPerSec);
+            const throughputForPower = totalTokensPerSecRequired > 0
+              ? totalTokensPerSecRequired
+              : totalEffectiveTokensPerSec;
+            const wattPerTokenPerSec = safeDivide(powerConsumptionKw * 1000, throughputForPower);
             if (wattPerTokenPerSec > HIGH_POWER_PER_TOKEN) {
                  score -= 15; 
                  const efficientGpus = findMoreEfficientGpus(gpuConfigPowerKw, modelId, precision);
@@ -1009,7 +1015,16 @@ export const useCalculator = () => {
   useEffect(() => {
     const newResults = calculateResults();
     validateForm(newResults);
-  }, [formData]);
+  }, [
+    formData,
+    selectedModelPreset,
+    selectedGpuPreset,
+    selectedServerPreset,
+    selectedNetworkPreset,
+    selectedStoragePreset,
+    selectedRamPreset,
+    selectedSoftwarePreset,
+  ]);
 
   const buildCurrentSearchConfig = () => ({
     ...formData,
@@ -1023,10 +1038,29 @@ export const useCalculator = () => {
   const runConfigSearch = () => searchAllHardwareConfigs(buildCurrentSearchConfig(), performFullCalculation);
 
   const applyRecommendedConfig = (rec) => {
-    if (!rec) return;
-    applyGpuPreset(rec.gpuKey);
-    applyServerPreset(rec.serverKey);
-    setFormData((prev) => ({ ...prev, modelParamsBitsPrecision: rec.precision }));
+    if (!rec?.gpuKey || !rec?.serverKey) return;
+    const gpuPreset = GPU_PRESETS[rec.gpuKey];
+    const serverPreset = SERVER_PRESETS[rec.serverKey];
+    const precision = parseInt(rec.precision, 10) || 16;
+    if (!gpuPreset || !serverPreset) return;
+
+    setSelectedGpuPreset(rec.gpuKey);
+    setSelectedServerPreset(rec.serverKey);
+    setFormData((prev) => ({
+      ...prev,
+      modelParamsBitsPrecision: precision,
+      gpuConfigModel: gpuPreset.name,
+      gpuConfigCostUsd: gpuPreset.cost,
+      gpuConfigPowerKw: gpuPreset.power,
+      gpuConfigVramGb: gpuPreset.vram,
+      serverConfigNumGpuPerServer: serverPreset.gpuCount,
+      serverConfigCostUsd: serverPreset.cost,
+      serverConfigPowerOverheadKw: serverPreset.power,
+      serverPricingMode: serverPreset.pricingMode ?? 'barebone',
+      serverTotalPowerKw: serverPreset.totalPowerKw ?? null,
+      serverTotalGpuVramGb: serverPreset.totalGpuVramGb ?? null,
+    }));
+    setRecommendedConfig(null);
   };
 
   // Автоподбор оптимальной конфигурации при изменении модели/нагрузки
@@ -1045,7 +1079,7 @@ export const useCalculator = () => {
         const current = {
           gpuKey: selectedGpuPreset,
           serverKey: selectedServerPreset,
-          precision: formData.modelParamsBitsPrecision,
+          precision: parseInt(formData.modelParamsBitsPrecision, 10),
         };
         const currentCalc = performFullCalculation({
           ...buildCurrentSearchConfig(),

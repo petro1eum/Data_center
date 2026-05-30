@@ -81,15 +81,15 @@ export const searchAllHardwareConfigs = (currentConfig, performFullCalculation) 
   return allResults;
 };
 
-/** Лучший баланс рейтинг + TCO */
+/** Лучший баланс рейтинг + TCO — только конфигурации с рейтингом ≥ 40 */
 export const pickOptimalConfig = (allResults) => {
   const workable = allResults.filter((r) => !CRITICAL_LABELS.includes(r.ratingLabel));
   if (!workable.length) return null;
 
   const acceptable = workable.filter((r) => r.ratingScore >= MIN_ACCEPTABLE_SCORE);
-  const pool = acceptable.length ? acceptable : workable;
+  if (!acceptable.length) return null;
 
-  return [...pool].sort((a, b) => {
+  return [...acceptable].sort((a, b) => {
     if (b.ratingScore !== a.ratingScore) return b.ratingScore - a.ratingScore;
     return a.fiveYearTco - b.fiveYearTco;
   })[0];
@@ -105,4 +105,4 @@ export const pickCheapestConfigs = (allResults, limit = 3) => {
 export const isSameHardwareConfig = (current, rec) =>
   current?.gpuKey === rec?.gpuKey
   && current?.serverKey === rec?.serverKey
-  && current?.precision === rec?.precision;
+  && parseInt(current?.precision, 10) === parseInt(rec?.precision, 10);
