@@ -9,22 +9,27 @@ export const GPU_RELATIVE_PERFORMANCE = {
   "b200-hbm3e": 6.0,
   "b300-hbm3e": 7.5,
   "gb200-grace-blackwell": 6.5,
+  "nvidia-rubin-r100": 14.0,
   "l40s-48gb": 0.7,
   "a800-80gb": 0.9,
   "h20-china": 1.8,
   "amd-mi300x": 3.3,
   "amd-mi325x": 4.0,
   "amd-mi350x": 5.0,
+  "amd-mi355x": 6.5,
+  "amd-mi400": 9.0,
   "intel-gaudi3": 2.0,
   "google-tpu-v5p": 2.25,
   "ibm-spyre-accelerator": 0.85,
+  "groq-lpu": 1.5,
   default: 0.3,
 };
 
 const GPUS = [
   "a100-80gb", "h100-80gb", "h200-141gb", "b200-hbm3e", "b300-hbm3e",
+  "nvidia-rubin-r100",
   "l40s-48gb", "a800-80gb", "h20-china",
-  "amd-mi300x", "amd-mi325x", "amd-mi350x",
+  "amd-mi300x", "amd-mi325x", "amd-mi350x", "amd-mi355x", "amd-mi400",
   "intel-gaudi3", "google-tpu-v5p",
 ];
 
@@ -65,7 +70,14 @@ function buildFromH100(baseH100, { moe8bitOnly = false, estimated = true, basePr
 }
 
 export const PERFORMANCE_MATRIX = {
-  // ── Qwen 3.6 ──
+  // ── Июнь 2026 open-weight волна (base @ FP8) ──
+  // Сверка с Artificial Analysis cloud median: GLM-5.2 ~150, MiniMax M3 ~94, Kimi K2.7 ~54 tok/s
+  "glm-5.2": buildFromH100(520, { moe8bitOnly: true, basePrecision: 8 }),
+  "minimax-m3": buildFromH100(560, { moe8bitOnly: true, basePrecision: 8 }),
+  "kimi-k2.7-code": buildFromH100(760, { moe8bitOnly: true, basePrecision: 8 }),
+
+  // ── Qwen 3.5 / 3.6 ──
+  "qwen3.5-397b-a17b": buildFromH100(480, { moe8bitOnly: true, basePrecision: 8 }),
   "qwen3.6-27b": buildFromH100(420),
   "qwen3.6-35b-a3b": buildFromH100(520),
 

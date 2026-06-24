@@ -46,6 +46,7 @@ const getInitialFormData = () => {
         deployVramGb: modelPreset?.deployVramGb ?? null,
         deployGpuCount: modelPreset?.deployGpuCount ?? null,
         checkpointSizeGb: modelPreset?.checkpointSizeGb ?? null,
+        kvCacheFactor: modelPreset?.kvCacheFactor ?? 1,
         modelParamsBitsPrecision: modelPreset?.deployPrecision ?? 16,
         userLoadConcurrentUsers: 100,
         userLoadTokensPerRequest: 100,
@@ -83,7 +84,6 @@ const getInitialFormData = () => {
         serverPricingMode: serverPreset?.pricingMode ?? 'barebone',
         serverTotalPowerKw: serverPreset?.totalPowerKw ?? null,
         serverTotalGpuVramGb: serverPreset?.totalGpuVramGb ?? null,
-        deployGpuCount: modelPreset?.deployGpuCount ?? null,
     };
 };
 
@@ -165,14 +165,15 @@ export const useCalculator = () => {
         modelParamsBitsPrecision: preset.deployPrecision ?? prev.modelParamsBitsPrecision,
         isMultimodal: preset.isMultimodal ?? false,
         multimodalOverheadGb: preset.multimodalOverheadGb ?? 0,
-        isAgentModeEnabled: preset.supports_tool_calls ? prev.isAgentModeEnabled : false 
+        kvCacheFactor: preset.kvCacheFactor ?? 1,
+        isAgentModeEnabled: preset.supports_tool_calls ? prev.isAgentModeEnabled : false
       }));
       setSelectedModelPreset(presetKey);
       setShowModelInfo(true);
     } else {
         setSelectedModelPreset("");
         setShowModelInfo(false);
-        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelActiveParamsBillion: 0, deployVramGb: null, deployGpuCount: null, checkpointSizeGb: null, isMultimodal: false, multimodalOverheadGb: 0, isAgentModeEnabled: false }));
+        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelActiveParamsBillion: 0, deployVramGb: null, deployGpuCount: null, checkpointSizeGb: null, isMultimodal: false, multimodalOverheadGb: 0, kvCacheFactor: 1, isAgentModeEnabled: false }));
     }
   };
   const applyGpuPreset = (presetKey) => {

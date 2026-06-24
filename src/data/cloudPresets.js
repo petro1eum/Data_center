@@ -30,11 +30,13 @@ export const CLOUD_GPU_RATES = {
   "h100-80gb": { lambda: 3.29, coreweave: 6.16, runpod: 2.69 },
   "h200-141gb": { lambda: 3.99, coreweave: 6.31, runpod: 3.59 },
   "b200-hbm3e": { lambda: 5.29, coreweave: 8.60, runpod: 5.98 },
-  "b300-hbm3e": { lambda: 6.50, coreweave: 10.00, runpod: 7.50 },
+  "b300-hbm3e": { lambda: 6.80, coreweave: 9.50, runpod: 5.50 },
   "gb200-grace-blackwell": { lambda: 50.0, coreweave: 68.80, runpod: 47.84 },
+  "nvidia-rubin-r100": { lambda: 9.00, coreweave: 12.00, runpod: 8.50 },
   "l40s-48gb": { lambda: 1.99, coreweave: 2.25, runpod: 0.86 },
   "amd-mi300x": { lambda: 2.50, coreweave: 3.50, runpod: 2.40 },
   "amd-mi325x": { lambda: 3.20, coreweave: 4.00, runpod: 3.00 },
+  "amd-mi355x": { lambda: 3.20, coreweave: 4.50, runpod: 2.29 },
 };
 
 export const getCloudRateForGpu = (gpuId, providerId) =>

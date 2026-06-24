@@ -1,9 +1,87 @@
-// Пресеты LLM — май 2026 (Hugging Face, DeepSeek/MIT, model cards апр. 2026)
+// Пресеты LLM — июнь 2026 (Hugging Face, model cards, Artificial Analysis, OpenRouter)
 // activeParams — MoE active/token. deployVramGb — VRAM deploy (FP4+FP8). checkpointSizeGb — размер весов на диске.
+// kvCacheFactor — множитель KV-cache по архитектуре внимания (1.0 = GQA baseline; <1 = MLA/MSA/DSA/Mamba/linear).
+//   Отсутствует ⇒ 1.0. Снижает оценку VRAM/числа GPU для моделей со сжатым KV.
 export const MODEL_PRESETS = {
+  // ─── Июнь 2026: открытая волна (GLM-5.2 / MiniMax M3 / Kimi K2.7) ──
+  "glm-5.2": {
+    name: "GLM-5.2",
+    kvCacheFactor: 0.25, // DSA + IndexShare (sparse attention)
+    params: 744,
+    activeParams: 40,
+    description:
+      "Z.ai flagship MoE (13.06.2026, MIT): 744B / 40B active, 1M context. " +
+      "#1 open-weight на коде: SWE-Bench Pro 62.1, Terminal-Bench 2.1 81.0, FrontierSWE 74.4%. " +
+      "API ~$1.40/$4.40 за 1M tok. Deploy: FP8 ~760GB → 8×H200; FP4 ~4×H200/B200.",
+    recommended: true,
+    supports_tool_calls: true,
+    developer: "Z.ai (Zhipu)",
+    context: "1000000 tokens",
+    contextValue: 1000000,
+    license: "MIT License",
+    moe: "Yes (744B total, ~40B active, DSA + IndexShare)",
+    optimizations: "IndexShare (-2.9× FLOPs @1M), улучшенный MTP spec-decoding, thinking high/max",
+    multimodality: "Text",
+    deployVramGb: 760,
+    deployGpuCount: 8,
+    deployPrecision: 8,
+    checkpointSizeGb: 744,
+    apiModelId: "glm-5.2",
+  },
+  "minimax-m3": {
+    name: "MiniMax M3",
+    kvCacheFactor: 0.10, // MSA (MiniMax Sparse Attention, ~1/20 @1M)
+    params: 428,
+    activeParams: 23,
+    description:
+      "Первая open-weight frontier-модель с native multimodality (01.06.2026): 428B / 23B active, 1M context. " +
+      "Text+Image+Video с шага 0 обучения. SWE-Bench Pro 59.0%, AA Intelligence 44. " +
+      "API ~$0.30/$1.20 за 1M tok. Deploy: FP8 ~450GB → 6×H200/8×H100.",
+    recommended: true,
+    supports_tool_calls: true,
+    developer: "MiniMax AI",
+    context: "1048576 tokens",
+    contextValue: 1048576,
+    license: "MiniMax Model License (open weight)",
+    moe: "Yes (428B total, ~23B active)",
+    optimizations: "MSA (MiniMax Sparse Attention), 1/20 per-token compute @1M, native multimodal",
+    multimodality: "Text, Image, Video",
+    isMultimodal: true,
+    deployVramGb: 450,
+    deployGpuCount: 6,
+    deployPrecision: 8,
+    checkpointSizeGb: 430,
+  },
+  "kimi-k2.7-code": {
+    name: "Kimi K2.7 Code",
+    kvCacheFactor: 0.15, // MLA (Multi-head Latent Attention)
+    params: 1000,
+    activeParams: 32,
+    description:
+      "Agentic coding GA (12.06.2026, Modified MIT): 1T / 32B active, 256K context, MoonViT vision. " +
+      "На 30% меньше reasoning-токенов, 6× быстрее мультимодального инференса vs K2.6. Always-thinking. " +
+      "API ~$0.74/$3.50 за 1M tok. Deploy: FP8 ~1TB → 8×H200 min.",
+    recommended: true,
+    supports_tool_calls: true,
+    developer: "Moonshot AI",
+    context: "262144 tokens",
+    contextValue: 262144,
+    license: "Modified MIT License",
+    moe: "Yes (1T total, 32B active, MLA + MoonViT 400M)",
+    optimizations: "MLA, MoonViT, reasoning-token reduction, long-horizon agentic coding",
+    multimodality: "Text, Image, Video",
+    isMultimodal: true,
+    deployVramGb: 1000,
+    deployGpuCount: 8,
+    deployPrecision: 8,
+    checkpointSizeGb: 1000,
+    apiModelId: "kimi-k2.7-code",
+  },
+
   // ─── DeepSeek V4 (релиз 24 апр. 2026) — flagship open-weight 2026 ──
   "deepseek-v4-flash": {
     name: "DeepSeek-V4-Flash (Instant)",
+    kvCacheFactor: 0.10, // CSA+HCA hybrid (~10% KV vs V3 @1M)
     params: 284,
     activeParams: 13,
     description:
@@ -27,11 +105,12 @@ export const MODEL_PRESETS = {
   },
   "deepseek-v4-pro": {
     name: "DeepSeek-V4-Pro (Expert)",
+    kvCacheFactor: 0.10, // CSA+HCA hybrid (~10% KV vs V3 @1M)
     params: 1600,
     activeParams: 49,
     description:
       "Frontier V4 (24.04.2026, MIT): 1.6T / 49B active — крупнейший open-weight MoE. " +
-      "Expert Mode, Think Max, Codeforces 3206. API deepseek-v4-pro ~$1.74/$3.48 за 1M tok. " +
+      "Expert Mode, Think Max, SWE-bench Verified 80.6% (Pro-Max). API ~$0.435/$0.87 за 1M tok. " +
       "Deploy: ~865GB weights → min 8×H200 (1 node) или 16×H100 multi-node. BF16 ~3.2TB.",
     recommended: true,
     supports_tool_calls: true,
@@ -140,6 +219,7 @@ export const MODEL_PRESETS = {
   // ─── Qwen 3.6 ───────────────────────────────────────────────
   "qwen3.6-27b": {
     name: "Qwen3.6 27B",
+    kvCacheFactor: 0.40, // Gated DeltaNet + Gated Attention hybrid
     params: 27,
     description: "Open-weight dense Qwen3.6 (апр. 2026). Gated DeltaNet + Attention, 262K контекст (до 1M YaRN). SWE-bench Verified 77.2%.",
     recommended: true,
@@ -154,6 +234,7 @@ export const MODEL_PRESETS = {
   },
   "qwen3.6-35b-a3b": {
     name: "Qwen3.6 35B-A3B",
+    kvCacheFactor: 0.40, // Gated DeltaNet + MoE hybrid
     params: 35,
     activeParams: 3,
     description: "Sparse MoE Qwen3.6: 35B всего, ~3B активных. Multimodal VLM, 262K native / 1M YaRN. Лучший $/perf для agentic coding.",
@@ -171,6 +252,30 @@ export const MODEL_PRESETS = {
     deployGpuCount: 2,
     deployPrecision: 4,
     checkpointSizeGb: 84,
+  },
+
+  "qwen3.5-397b-a17b": {
+    name: "Qwen3.5 397B-A17B",
+    kvCacheFactor: 0.40, // Gated DeltaNet (linear) + Attention hybrid
+    params: 397,
+    activeParams: 17,
+    description:
+      "Alibaba flagship MoE (16.02.2026, Apache 2.0): 397B / 17B active, 512 экспертов (11 на токен). " +
+      "Обгоняет собственную 1T-модель при доле стоимости. 201 язык, 1M context (YaRN). " +
+      "Gated DeltaNet + MoE. Deploy: FP8 ~410GB → 6×H200/8×H100.",
+    recommended: true,
+    supports_tool_calls: true,
+    developer: "Alibaba Qwen",
+    context: "262144 tokens (1M YaRN)",
+    contextValue: 262144,
+    license: "Apache 2.0",
+    moe: "Yes (512 experts, 10 routed + 1 shared, ~17B active)",
+    optimizations: "Gated DeltaNet (linear attention), MoE, MTP, thinking mode",
+    multimodality: "Text",
+    deployVramGb: 410,
+    deployGpuCount: 6,
+    deployPrecision: 8,
+    checkpointSizeGb: 400,
   },
 
   // ─── Meta Llama 4 ─────────────────────────────────────────────
@@ -218,6 +323,7 @@ export const MODEL_PRESETS = {
   // ─── Moonshot Kimi K2 ─────────────────────────────────────────
   "kimi-k2.5": {
     name: "Kimi K2.5",
+    kvCacheFactor: 0.15, // MLA
     params: 1000,
     activeParams: 32,
     description: "Multimodal K2 (янв. 2026): 1T/32B active, MoonViT vision, 256K context, thinking+instant modes.",
@@ -233,6 +339,7 @@ export const MODEL_PRESETS = {
   },
   "kimi-k2.6": {
     name: "Kimi K2.6",
+    kvCacheFactor: 0.15, // MLA
     params: 1000,
     activeParams: 32,
     description: "Agentic coding GA (апр. 2026): 1T/32B, 262K context, 300-agent swarms, 12h autonomous runs. SWE-Bench Pro 58.6%.",
@@ -250,6 +357,7 @@ export const MODEL_PRESETS = {
   // ─── Mistral ──────────────────────────────────────────────────
   "mistral-large-3-675b": {
     name: "Mistral Large 3 675B",
+    kvCacheFactor: 0.15, // MLA
     params: 675,
     activeParams: 41,
     description: "Granular MoE (дек. 2025): 675B / 41B active + 2.5B vision encoder. 256K context, Apache 2.0. 8×H200 FP8.",
@@ -301,6 +409,7 @@ export const MODEL_PRESETS = {
   // ─── Z.ai GLM ─────────────────────────────────────────────────
   "glm-5.1": {
     name: "GLM-5.1",
+    kvCacheFactor: 0.25, // DSA (DeepSeek Sparse Attention)
     params: 744,
     activeParams: 40,
     description: "Z.ai flagship MoE (апр. 2026, MIT): 744B / 40B active, 200K context. #1 SWE-Bench Pro 58.4% (vendor).",
@@ -318,6 +427,7 @@ export const MODEL_PRESETS = {
   // ─── NVIDIA Nemotron 3 ────────────────────────────────────────
   "nemotron-3-nano": {
     name: "Nemotron 3 Nano 30B-A3B",
+    kvCacheFactor: 0.40, // Mamba-2 + GQA hybrid (Mamba layers = constant state)
     params: 31.6,
     activeParams: 3.2,
     description: "NVIDIA open MoE (дек. 2025): 31.6B / 3.2B active. Hybrid Mamba-Transformer, 1M context, agentic reasoning.",
@@ -333,6 +443,7 @@ export const MODEL_PRESETS = {
   },
   "nemotron-3-super": {
     name: "Nemotron 3 Super 120B-A12B",
+    kvCacheFactor: 0.40, // Mamba-Transformer hybrid
     params: 120,
     activeParams: 12,
     description: "Nemotron 3 Super (~2026 H1): ~120B / 12B active. LatentMoE, NVFP4, collaborative agents.",

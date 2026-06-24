@@ -2,23 +2,6 @@ import { PERFORMANCE_MATRIX, GPU_RELATIVE_PERFORMANCE } from '../data/performanc
 import { getCloudApiThroughput } from '../data/openRouterBenchmarks';
 
 /**
- * Расчет требуемого количества GPU
- * @param {Object} calcInputData - Данные формы (с эффективными токенами)
- * @returns {number} - Количество GPU
- */
-export const calcRequiredGpu = (calcInputData) => {
-    // Используем userLoadTokensPerRequest из calcInputData, который уже учитывает работу агентов
-    const { userLoadConcurrentUsers, userLoadTokensPerRequest, userLoadResponseTimeSec, modelParamsTokensPerSecPerGpu } = calcInputData;
-    
-    // Общая требуемая производительность в токенах/сек
-    const totalTokensPerSec = safeDivide(userLoadConcurrentUsers * userLoadTokensPerRequest, userLoadResponseTimeSec);
-    // Требуемое количество GPU
-    const numGpu = safeDivide(totalTokensPerSec, modelParamsTokensPerSecPerGpu);
-    
-    return Math.ceil(numGpu);
-  };
-  
-  /**
    * CapEx: barebone (GPU×N + chassis×M) | turnkey (node×M) | rack (rack×M, GPU включены)
    */
   export const calcCapex = (numGpu, formData) => {
@@ -327,9 +310,7 @@ export const calcCloudBenchmark = (numGpu, gpuRatePerHour, onPremCapex, onPremAn
   const cloudAnnualUsd = numGpu * gpuRatePerHour * 8760;
   const cloudFiveYearTco = cloudAnnualUsd * 5;
   const onPremFiveYearTco = (onPremCapex ?? 0) + (onPremAnnualOpex ?? 0) * 5;
-  const breakevenMonths = onPremAnnualOpex > 0
-    ? onPremCapex / (cloudAnnualUsd / 12)
-    : onPremCapex / (cloudAnnualUsd / 12);
+  const breakevenMonths = onPremCapex / (cloudAnnualUsd / 12);
   const cloudSavingsPercent = onPremFiveYearTco > 0
     ? ((onPremFiveYearTco - cloudFiveYearTco) / onPremFiveYearTco) * 100
     : null;

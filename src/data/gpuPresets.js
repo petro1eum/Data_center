@@ -49,6 +49,14 @@ export const GPU_PRESETS = {
     description: "Grace CPU + 2×B200 via NVLink-C2C. $60–70K/superchip. База NVL72 rack.",
     recommended: false,
   },
+  "nvidia-rubin-r100": {
+    name: "NVIDIA Rubin R100 288GB",
+    cost: 50000,
+    power: 2.0,
+    vram: 288,
+    description: "Rubin (H2 2026): 288GB HBM4, 50 PFLOPS FP4, 22 TB/s, NVLink 6. 400B-модель на 1 GPU @ FP4. Только жидкостное охлаждение. Cloud ~$6–10+/GPU-hr (прогноз).",
+    recommended: true,
+  },
   "l40s-48gb": {
     name: "NVIDIA L40S 48GB",
     cost: 8200,
@@ -92,9 +100,25 @@ export const GPU_PRESETS = {
   "amd-mi350x": {
     name: "AMD Instinct MI350X 288GB",
     cost: 18000,
-    power: 0.6,
+    power: 1.0,
     vram: 288,
-    description: "CDNA 4, 288GB HBM3E. Паритет B300 по памяти.",
+    description: "CDNA 4, 288GB HBM3E, air-cooled ~1000W. Паритет B300 по памяти.",
+    recommended: false,
+  },
+  "amd-mi355x": {
+    name: "AMD Instinct MI355X 288GB",
+    cost: 25000,
+    power: 1.4,
+    vram: 288,
+    description: "CDNA 4, 288GB HBM3E, 8 TB/s, MXFP6/MXFP4, 20+ PFLOPS FP4. Liquid 1400W. ~$25K. Cloud $2.29–8.60/GPU-hr.",
+    recommended: true,
+  },
+  "amd-mi400": {
+    name: "AMD Instinct MI400 432GB",
+    cost: 32000,
+    power: 1.6,
+    vram: 432,
+    description: "CDNA-Next (2026): 432GB HBM4, до 19.6 TB/s (2× MI355X). Топовая память для 1T+ MoE без sharding.",
     recommended: false,
   },
   "intel-gaudi3": {

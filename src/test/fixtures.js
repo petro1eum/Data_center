@@ -46,6 +46,7 @@ export function buildCalculationConfig(overrides = {}) {
     checkpointSizeGb: model.checkpointSizeGb ?? null,
     isMultimodal: model.isMultimodal ?? false,
     multimodalOverheadGb: model.multimodalOverheadGb ?? 0,
+    kvCacheFactor: model.kvCacheFactor ?? 1,
     modelParamsBitsPrecision: overrides.modelParamsBitsPrecision ?? model.deployPrecision ?? 16,
     userLoadConcurrentUsers: 100,
     userLoadTokensPerRequest: 100,

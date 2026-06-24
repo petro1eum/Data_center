@@ -79,7 +79,10 @@ export const calcUserLoadMetrics = (formData) => {
 
 /**
  * Оценка KV-cache для concurrent sessions.
- * Масштаб: ~35 MB / 1K tokens @ 7B active; линейно по active params.
+ * Масштаб: ~35 MB / 1K tokens @ 7B active (GQA baseline); линейно по active params.
+ * kvCacheFactor — множитель архитектуры внимания: MLA/MSA/DSA/Mamba/linear сжимают KV
+ * в разы (DeepSeek V4 ~10%, MiniMax MSA ~1/20, GLM DSA, Qwen Gated DeltaNet, Nemotron Mamba).
+ * 1.0 = обычный GQA. См. поле kvCacheFactor в MODEL_PRESETS.
  */
 export const calcKvCacheGb = (formData, avgContextTokensPerSession) => {
   const {
@@ -88,6 +91,7 @@ export const calcKvCacheGb = (formData, avgContextTokensPerSession) => {
     modelActiveParamsBillion,
     isMultimodal = false,
     multimodalContextOverheadTokens = 2048,
+    kvCacheFactor = 1,
   } = formData;
 
   const effectiveParams = modelActiveParamsBillion ?? modelParamsNumBillion;
@@ -95,7 +99,8 @@ export const calcKvCacheGb = (formData, avgContextTokensPerSession) => {
   if (isMultimodal && multimodalContextOverheadTokens > 0) {
     contextTokens += multimodalContextOverheadTokens;
   }
-  const kvGbPerUserPer1K = (effectiveParams / 7) * 0.035;
+  const attnFactor = (kvCacheFactor > 0 && kvCacheFactor <= 1) ? kvCacheFactor : 1;
+  const kvGbPerUserPer1K = (effectiveParams / 7) * 0.035 * attnFactor;
 
   return userLoadConcurrentUsers * (contextTokens / 1000) * kvGbPerUserPer1K;
 };
@@ -199,12 +204,21 @@ export const calcFinalGpuCount = ({
   weightGb = 0,
   kvCacheGb = 0,
 }) => {
-  const tpsPerReplica = effectiveTokensPerSecPerGpu;
-
-  const replicasForThroughput = Math.ceil(
-    safeDivide(totalTokensPerSecRequired, tpsPerReplica),
+  // Матрица даёт tokens/sec/GPU: деплой из N GPU (одна tensor-parallel реплика
+  // из N GPU ИЛИ N реплик по 1) отдаёт ~N×tps. Поэтому считаем нужное число GPU
+  // напрямую и округляем ВВЕРХ до целых реплик. Старый код умножал число реплик
+  // на размер реплики и завышал throughput-ветку в gpusPerReplica раз.
+  const tpsPerGpu = effectiveTokensPerSecPerGpu;
+  const gpusForThroughputRaw = Math.ceil(
+    safeDivide(totalTokensPerSecRequired, tpsPerGpu),
   );
-  const gpuCountForThroughput = replicasForThroughput * gpusPerReplica;
+  const gpuCountForThroughput = gpusPerReplica > 1
+    ? Math.max(gpusPerReplica, Math.ceil(gpusForThroughputRaw / gpusPerReplica) * gpusPerReplica)
+    : gpusForThroughputRaw;
+  const replicasForThroughput = gpusPerReplica > 0
+    ? gpuCountForThroughput / gpusPerReplica
+    : gpuCountForThroughput;
+  const tpsPerReplica = tpsPerGpu * gpusPerReplica;
 
   let productionGpu = Math.max(minGpusForMemory, gpuCountForThroughput);
   if (gpusPerReplica > 1) {
