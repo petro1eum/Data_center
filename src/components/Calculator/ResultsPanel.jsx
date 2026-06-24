@@ -50,7 +50,7 @@ const StatCard = ({ title, tooltip, value, prefix, suffix, precision, formatter,
       suffix={suffix}
       precision={precision}
       formatter={formatter}
-      valueStyle={{ color: color || '#1890ff', fontSize: 20, fontWeight: 500 }}
+      valueStyle={{ color: color || '#ef4444', fontSize: 20, fontWeight: 500 }}
     />
     {children && <div style={{ marginTop: 8, fontSize: '12px', lineHeight: '1.4' }}>{children}</div>}
   </Card>
@@ -111,10 +111,10 @@ const renderBoldText = (text) => {
 };
 
 const ISSUE_ICONS = {
-  critical: <CloseCircleOutlined style={{ color: '#ff4d4f' }} />,
-  warning: <WarningOutlined style={{ color: '#faad14' }} />,
-  recommendation: <BulbOutlined style={{ color: '#1890ff' }} />,
-  info: <InfoCircleOutlined style={{ color: '#8c8c8c' }} />,
+  critical: <CloseCircleOutlined style={{ color: '#dc2626' }} />,
+  warning: <WarningOutlined style={{ color: '#f97316' }} />,
+  recommendation: <BulbOutlined style={{ color: '#ef4444' }} />,
+  info: <InfoCircleOutlined style={{ color: '#64748b' }} />,
 };
 
 // Компонент для отображения рейтинга 
@@ -126,7 +126,7 @@ const RatingDisplay = ({ rating }) => {
                 title={<Space><LikeOutlined /> Рейтинг конфигурации</Space>} 
                 size="small" 
                 style={{ marginTop: 16 }}
-                styles={{ header: { backgroundColor: '#fafafa' }, body: { paddingTop: 16, paddingBottom: 8 } }} 
+                styles={{ header: { backgroundColor: '#f8fafc' }, body: { paddingTop: 16, paddingBottom: 8 } }} 
             >
                  <Text type="secondary">Рейтинг пока не рассчитан.</Text>
              </Card>
@@ -146,7 +146,7 @@ const RatingDisplay = ({ rating }) => {
             size="small" 
             hoverable 
             style={{ marginTop: 16 }} 
-            styles={{ header: { backgroundColor: '#fafafa' }, body: { paddingTop: 16, paddingBottom: 8 } }} 
+            styles={{ header: { backgroundColor: '#f8fafc' }, body: { paddingTop: 16, paddingBottom: 8 } }} 
         >
             <Row gutter={[16, 8]} align="middle">
                 <Col xs={24} sm={6} md={5} lg={4} style={{ textAlign: 'center' }}>
@@ -251,7 +251,7 @@ const ResultsPanel = ({
       cloudProviderId,
   } = formData || {};
 
-  const cardHeadStyle = { backgroundColor: '#fafafa', borderBottom: '1px solid #f0f0f0' };
+  const cardHeadStyle = { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' };
 
   return (
     <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -288,7 +288,7 @@ const ResultsPanel = ({
                   value={formatNumber(requiredGpu)}
                   prefix={<HddOutlined />} // Заменили иконку на HDD для GPU?
                   suffix="GPU"
-                  color="#1890ff"
+                  color="#ef4444"
                   tooltip={gpuCountMode === 'minimum'
                     ? 'Minimum deploy: 1 реплика / model card floor'
                     : 'Production: масштаб под нагрузку и агентов'}
@@ -310,7 +310,7 @@ const ResultsPanel = ({
                   title="Стоимость (CapEx)"
                   value={formatCurrency(capexUsd)}
                   prefix={<DollarCircleOutlined />}
-                  color="#52c41a"
+                  color="#047857"
                   tooltip="Общие первоначальные инвестиции в оборудование"
                   precision={0}
                 >
@@ -325,7 +325,7 @@ const ResultsPanel = ({
                   value={formatNumber(userLoadConcurrentUsers)}
                   prefix={<TeamOutlined />}
                   suffix="Пользователей"
-                  color="#722ed1"
+                  color="#3b82f6"
                   tooltip="Количество одновременных пользователей и расчетная производительность системы"
                   precision={0}
                 >
@@ -340,7 +340,7 @@ const ResultsPanel = ({
                   value={formatNumber(safeDivide(totalEffectiveTokensPerSec, powerConsumptionKw), 0)} 
                   prefix={<ThunderboltOutlined />} 
                   suffix="Tok/s/kW" 
-                  color="#eb2f96"
+                  color="#e11d48"
                   tooltip="Количество обрабатываемых токенов в секунду на киловатт потребляемой мощности"
                   precision={0}
                 >

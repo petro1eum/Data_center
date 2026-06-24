@@ -45,7 +45,7 @@ const KpiCard = ({ title, tooltip, value, prefix, suffix, precision = 0, color, 
             precision={precision}
             prefix={prefix}
             suffix={suffix}
-            valueStyle={{ color: color || '#1890ff', fontSize: 18, fontWeight: 500 }}
+            valueStyle={{ color: color || '#ef4444', fontSize: 18, fontWeight: 500 }}
         />
     </Card>
 );
@@ -121,7 +121,7 @@ const AnalyticsPanel = ({ results, formData }) => {
     
     // --- Рендеринг --- 
     return (
-        <Card variant="borderless" style={{ background: '#f9f9f9' }} styles={{ body: { padding: '16px 20px' } }}>
+        <Card variant="borderless" style={{ background: '#f8fafc' }} styles={{ body: { padding: '16px 20px' } }}>
             <Title level={4} style={{ marginBottom: 8 }}>Аналитика и KPI</Title>
             <Paragraph type="secondary" style={{ marginBottom: 20 }}>
                 Ключевые показатели эффективности (KPI), экономические метрики и анализ структуры затрат для выбранной конфигурации.
@@ -129,7 +129,7 @@ const AnalyticsPanel = ({ results, formData }) => {
             </Paragraph>
 
             {/* --- Блок Ключевых Экономических KPI --- */} 
-            <Title level={5}><DollarCircleOutlined style={{ marginRight: 8, color: '#fa8c16' }}/>Экономика (на пользователя)</Title>
+            <Title level={5}><DollarCircleOutlined style={{ marginRight: 8, color: '#f97316' }}/>Экономика (на пользователя)</Title>
             <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={12} md={6}>
                     <KpiCard 
@@ -139,7 +139,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         prefix="$"
                         suffix="/1M tok"
                         precision={0}
-                        color="#d4380d"
+                        color="#c2410c"
                         icon={<DollarCircleOutlined />}
                     />
                 </Col>
@@ -150,7 +150,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={tcoPerUser5yr ?? 0}
                         prefix="$"
                         precision={0}
-                        color="#cf1322"
+                        color="#b91c1c"
                         icon={<UserOutlined />}
                     />
                 </Col>
@@ -161,7 +161,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={capexPerUser ?? 0}
                         prefix="$"
                         precision={0}
-                        color="#096dd9"
+                        color="#e11d48"
                         icon={<RiseOutlined />}
                     />
                 </Col>
@@ -172,7 +172,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={opexPerUserAnnual ?? 0}
                         prefix="$"
                         precision={0}
-                        color="#d46b08"
+                        color="#c2410c"
                         icon={<FallOutlined />}
                     />
                 </Col>
@@ -180,7 +180,7 @@ const AnalyticsPanel = ({ results, formData }) => {
             {cloudFiveYearTco != null && (
               <>
                 <Title level={5} style={{ marginTop: 8 }}>
-                  <CloudOutlined style={{ marginRight: 8, color: '#1890ff' }} />
+                  <CloudOutlined style={{ marginRight: 8, color: '#ef4444' }} />
                   Cloud benchmark ({CLOUD_PROVIDERS[formData.cloudProviderId]?.name ?? 'cloud'})
                 </Title>
                 <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
@@ -190,7 +190,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                       value={cloudFiveYearTco ?? 0}
                       prefix="$"
                       precision={0}
-                      color="#722ed1"
+                      color="#3b82f6"
                       icon={<CloudOutlined />}
                     />
                   </Col>
@@ -200,7 +200,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                       value={fiveYearTco ?? 0}
                       prefix="$"
                       precision={0}
-                      color="#52c41a"
+                      color="#047857"
                       icon={<DollarCircleOutlined />}
                     />
                   </Col>
@@ -210,7 +210,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                       tooltip="Месяцев до окупации CapEx vs cloud-аренда"
                       value={breakevenMonths ?? 0}
                       precision={0}
-                      color="#fa8c16"
+                      color="#f97316"
                       icon={<FieldTimeOutlined />}
                     />
                   </Col>
@@ -220,7 +220,7 @@ const AnalyticsPanel = ({ results, formData }) => {
             <Divider />
 
             {/* --- Блок Производительности и Эффективности --- */} 
-            <Title level={5}><BarChartOutlined style={{ marginRight: 8, color: '#52c41a' }}/>Производительность и Эффективность</Title>
+            <Title level={5}><BarChartOutlined style={{ marginRight: 8, color: '#047857' }}/>Производительность и Эффективность</Title>
              <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
                 <Col xs={24} sm={12} lg={4}>
                     <KpiCard 
@@ -229,7 +229,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={tokensPerSecondPerUser ?? 0}
                         precision={1}
                         suffix="ток/с"
-                        color="#237804"
+                        color="#065f46"
                         icon={<FieldTimeOutlined />}
                     />
                 </Col>
@@ -240,7 +240,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={usersPerGpu ?? 0}
                         precision={1}
                         suffix="польз."
-                        color="#391085"
+                        color="#334155"
                         icon={<InteractionOutlined />}
                     />
                 </Col>
@@ -251,7 +251,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={totalLlmCallsPerSecond ?? 0}
                         precision={1}
                         suffix="выз/с"
-                        color="#08979c"
+                        color="#047857"
                         icon={<RetweetOutlined />}
                     />
                  </Col>
@@ -262,7 +262,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={totalToolCallsPerSecond ?? 0}
                         precision={1}
                         suffix="выз/с"
-                        color="#c41d7f"
+                        color="#e11d48"
                         icon={<ToolOutlined />}
                     />
                 </Col>
@@ -273,7 +273,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={kwPerGpu ?? 0}
                         precision={2}
                         suffix="кВт"
-                        color="#ad6800"
+                        color="#c2410c"
                         icon={<ThunderboltOutlined />}
                     />
                  </Col>
@@ -284,7 +284,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                         value={ramPerGpuRatio ?? 0}
                         precision={1}
                         suffix="ГБ RAM / GPU"
-                        color="#0050b3"
+                        color="#e11d48"
                         icon={<HddOutlined />}
                     />
                 </Col>
@@ -301,8 +301,8 @@ const AnalyticsPanel = ({ results, formData }) => {
                                     type="circle" 
                                     percent={capexPercent ?? 0} 
                                     format={(percent) => <><Text strong>{percent?.toFixed(0)}%</Text><br/><Text type="secondary">CapEx</Text></>}
-                                    strokeColor="#1890ff"
-                                    trailColor="#fff0f6"
+                                    strokeColor="#ef4444"
+                                    trailColor="#fff1f2"
                                     size={100}
                                 />
                            </Col>
@@ -311,8 +311,8 @@ const AnalyticsPanel = ({ results, formData }) => {
                                     type="circle" 
                                     percent={opexPercent ?? 0} 
                                     format={(percent) => <><Text strong>{percent?.toFixed(0)}%</Text><br/><Text type="secondary">OpEx</Text></>}
-                                    strokeColor="#fa8c16"
-                                    trailColor="#fffbe6"
+                                    strokeColor="#f97316"
+                                    trailColor="#fff7ed"
                                     size={100}
                                 />
                            </Col>
@@ -350,7 +350,7 @@ const AnalyticsPanel = ({ results, formData }) => {
                                 <Tag color={(gpuUtilizationPercent ?? 0) < 70 ? "warning" : "success"}>{safeDivide(requiredGpu, serverConfigNumGpuPerServer).toFixed(1)} / {(serversRequired ?? 0)} серверов</Tag>
                                 <Progress 
                                     percent={gpuUtilizationPercent ?? 0}
-                                    strokeColor={(gpuUtilizationPercent ?? 0) < 70 ? "#faad14" : "#52c41a"}
+                                    strokeColor={(gpuUtilizationPercent ?? 0) < 70 ? "#f97316" : "#047857"}
                                     format={(p) => `${p?.toFixed(1)}% (${requiredGpu ?? 0} / ${gpuSlotsAvailable ?? 0} слотов)`}
                                     status={(gpuUtilizationPercent ?? 0) === 100 ? "success" : "active"}
                                 />

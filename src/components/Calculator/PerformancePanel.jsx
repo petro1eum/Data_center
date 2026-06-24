@@ -159,10 +159,10 @@ const PerformancePanel = ({
       render: (_, row) => (
         <Space>
           {row.fitsVram ? (
-            <CheckCircleOutlined style={{ color: '#52c41a' }} />
+            <CheckCircleOutlined style={{ color: '#047857' }} />
           ) : (
             <Tooltip title={row.vramWarning ?? 'Не помещается'}>
-              <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+              <CloseCircleOutlined style={{ color: '#dc2626' }} />
             </Tooltip>
           )}
           <Text type="secondary">
@@ -181,7 +181,7 @@ const PerformancePanel = ({
           percent={pct}
           size="small"
           showInfo={false}
-          strokeColor={pct >= 90 ? '#52c41a' : pct >= 60 ? '#faad14' : '#1890ff'}
+          strokeColor={pct >= 90 ? '#047857' : pct >= 60 ? '#f97316' : '#ef4444'}
         />
       ),
     },
@@ -251,7 +251,7 @@ const PerformancePanel = ({
   return (
     <div style={{ width: '100%' }}>
       <Title level={4}>
-        <ThunderboltOutlined style={{ marginRight: 8, color: '#faad14' }} />
+        <ThunderboltOutlined style={{ marginRight: 8, color: '#f97316' }} />
         Скорость генерации (throughput)
       </Title>
       <Paragraph type="secondary">
@@ -297,7 +297,7 @@ const PerformancePanel = ({
                 <Col span={12}>
                   <Text type="secondary">1 GPU decode</Text>
                   <div>
-                    <Text style={{ fontSize: 22, fontWeight: 600, color: '#1890ff' }}>
+                    <Text style={{ fontSize: 22, fontWeight: 600, color: '#ef4444' }}>
                       {formatTps(currentMetrics.tpsEffective)}
                     </Text>
                     <Text type="secondary"> tok/s</Text>
@@ -350,7 +350,7 @@ const PerformancePanel = ({
               <Col span={12}>
                 <Text type="secondary">Суммарный throughput</Text>
                 <div>
-                  <Text style={{ fontSize: 22, fontWeight: 600, color: '#722ed1' }}>
+                  <Text style={{ fontSize: 22, fontWeight: 600, color: '#3b82f6' }}>
                     {formatTps(clusterMetrics.clusterTps)}
                   </Text>
                   <Text type="secondary"> tok/s</Text>
@@ -409,7 +409,7 @@ const PerformancePanel = ({
             yField="tps"
             height={220}
             style={{
-              fill: (d) => (d.isCurrent ? '#1890ff' : '#91caff'),
+              fill: (d) => (d.isCurrent ? '#ef4444' : '#fca5a5'),
             }}
             axis={{ y: { title: 'tok/s (× batching)' } }}
             tooltip={{
@@ -464,7 +464,7 @@ const PerformancePanel = ({
       )}
 
       <style>{`
-        .perf-row-current { background: #e6f4ff !important; }
+        .perf-row-current { background: #fff1f2 !important; }
       `}</style>
     </div>
   );

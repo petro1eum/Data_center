@@ -105,7 +105,7 @@ const columns = [
             <Space direction="vertical" size={2}>
                 <Tag color={record.toolCalls === 'Да' ? 'success' : 'default'}>Tools: {record.toolCalls}</Tag>
                 <Tag color={record.structuredOutput.includes('Да') ? 'processing' : 'default'}>StructOut: {record.structuredOutput}</Tag>
-                {record.moe === 'Да' && <Tag color="magenta">MoE</Tag>}
+                {record.moe === 'Да' && <Tag color="red">MoE</Tag>}
             </Space>
         ),
     },
@@ -129,7 +129,7 @@ const columns = [
         },
         render: (modalities) => (
              <Tooltip title={modalities} placement="topLeft">
-                 <Tag color="geekblue">{modalities}</Tag>
+                 <Tag color="blue">{modalities}</Tag>
              </Tooltip>
         )
     },
@@ -151,7 +151,7 @@ const columns = [
             return (
                 <Space size={[0, 4]} wrap>
                     {optList.map((opt, index) => (
-                        <Tag color="purple" key={index}>{opt}</Tag>
+                        <Tag color="orange" key={index}>{opt}</Tag>
                     ))}
                 </Space>
             );
@@ -178,7 +178,7 @@ const LlmHandbook = () => {
                 expandable={{
                     expandedRowRender: record => (
                         record.description && record.description !== '-' && !record.description.includes('отсутствует') ? (
-                            <div style={{ padding: '10px 15px', margin: '5px 0', backgroundColor: '#fafafa', border: '1px solid #f0f0f0', borderRadius: '4px' }}>
+                            <div style={{ padding: '10px 15px', margin: '5px 0', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '4px' }}>
                                 <ReactMarkdown remarkPlugins={[remarkGfm]}
                                     components={{ // Уменьшаем заголовки внутри описания
                                         h3: ({node, ...props}) => <h4 style={{ marginTop: '1em', marginBottom: '0.5em' }} {...props} />,

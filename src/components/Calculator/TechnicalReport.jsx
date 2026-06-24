@@ -37,7 +37,7 @@ const TechnicalReport = ({ formData, results, modelSizeError }) => {
       style={{ boxShadow: 'none' }}
       title={<Title level={4} style={{ margin: 0 }}><ToolOutlined style={{ marginRight: 8 }} /> Технический отчет</Title>}
     >
-      <Paragraph style={{ color: '#595959' }}>
+      <Paragraph style={{ color: '#475569' }}>
         Детальный анализ требований к инфраструктуре и рекомендации по оптимизации на основе введенных параметров.
         {formData.isAgentModeEnabled && <Tag icon={<RobotOutlined />} color="processing" style={{ marginLeft: 8 }}>Мультиагентный режим ({formData.agentRequestPercentage}%)</Tag>}
       </Paragraph>
@@ -120,10 +120,10 @@ const TechnicalReport = ({ formData, results, modelSizeError }) => {
         size="small"
         dataSource={recommendations}
         renderItem={item => (
-          <List.Item style={{ borderBottom: '1px solid #f0f0f0', padding: '8px 0' }}>
+          <List.Item style={{ borderBottom: '1px solid #e2e8f0', padding: '8px 0' }}>
             <List.Item.Meta
-              avatar={<CheckCircleOutlined style={{ color: '#52c41a', fontSize: 16, marginTop: 4 }} />}
-              title={<Text style={{ color: '#595959' }}>{item}</Text>}
+              avatar={<CheckCircleOutlined style={{ color: '#047857', fontSize: 16, marginTop: 4 }} />}
+              title={<Text style={{ color: '#475569' }}>{item}</Text>}
             />
           </List.Item>
         )}

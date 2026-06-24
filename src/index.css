@@ -1,4 +1,165 @@
+/* ===========================================================================
+   GenAI Data-Center Calculator — Interfera Design System theme layer.
+   Tokens mirrored from the "Interfera Design System" brand book
+   (claude.ai/design · tokens/colors, typography, spacing). Crimson accent +
+   orange→rose signature gradient over a navy/slate neutral system.
+   Fonts: Outfit (display/UI) + Inter (body).
+   =========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
 @import 'antd/dist/reset.css';
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+
+:root {
+  /* ---- Brand ---------------------------------------------------------- */
+  --if-crimson: #ef4444;
+  --if-crimson-600: #e11d48;
+  --if-orange: #f97316;
+  --if-navy: #0f172a;
+  --if-gradient: linear-gradient(135deg, #f97316 0%, #e11d48 100%);
+
+  /* ---- Neutral / slate scale ------------------------------------------ */
+  --if-slate-900: #0f172a;
+  --if-slate-700: #334155;
+  --if-slate-600: #475569;
+  --if-slate-500: #64748b;
+  --if-slate-400: #94a3b8;
+  --if-slate-200: #e2e8f0;
+  --if-slate-100: #f1f5f9;
+  --if-slate-50:  #f8fafc;
+  --if-white:     #ffffff;
+
+  /* ---- Semantic status ------------------------------------------------ */
+  --if-success: #047857;
+  --if-success-bg: #ecfdf5;
+  --if-success-border: #a7f3d0;
+  --if-danger: #b91c1c;
+  --if-danger-bg: #fef2f2;
+  --if-danger-border: #fecaca;
+  --if-trust: #3b82f6;
+
+  /* ---- Semantic aliases ----------------------------------------------- */
+  --text-strong: var(--if-navy);
+  --text-body:   var(--if-slate-600);
+  --text-muted:  var(--if-slate-500);
+  --text-faint:  var(--if-slate-400);
+  --accent:       var(--if-crimson);
+  --accent-hover: var(--if-crimson-600);
+  --surface-page:  var(--if-white);
+  --surface-soft:  var(--if-slate-50);
+  --surface-card:  var(--if-white);
+  --surface-inset: var(--if-slate-100);
+  --surface-dark:  var(--if-navy);
+  --border:        var(--if-slate-200);
+  --border-strong: var(--if-slate-400);
+
+  /* ---- Typography ----------------------------------------------------- */
+  --font-display: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-body:    'Inter', 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-mono:    'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+
+  /* ---- Radii ---------------------------------------------------------- */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  /* ---- Shadows -------------------------------------------------------- */
+  --shadow-card: 0 10px 30px -10px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02);
+  --shadow-hover: 0 30px 50px -10px rgba(239, 68, 68, 0.12), 0 10px 20px -15px rgba(0, 0, 0, 0.05);
+  --shadow-banner: 0 20px 45px -20px rgba(15, 23, 42, 0.05), 0 4px 6px -4px rgba(15, 23, 42, 0.02);
+  --shadow-action: 0 4px 12px rgba(15, 23, 42, 0.15);
+
+  /* ---- Motion --------------------------------------------------------- */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast: 0.2s;
+  --dur-base: 0.3s;
+}
+
+/* ---- Base ------------------------------------------------------------- */
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--text-strong);
+  background-color: var(--surface-soft);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4, h5, h6,
+.ant-typography h1, .ant-typography h2, .ant-typography h3,
+h1.ant-typography, h2.ant-typography, h3.ant-typography, h4.ant-typography, h5.ant-typography {
+  font-family: var(--font-display);
+  letter-spacing: -0.01em;
+}
+
+::selection { background: rgba(239, 68, 68, 0.16); }
+
+/* ---- Brand scrollbar -------------------------------------------------- */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb {
+  background: var(--if-slate-200);
+  border-radius: var(--radius-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--if-slate-400); background-clip: content-box; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* ===========================================================================
+   Ant Design — signature overrides the theme tokens can't express.
+   =========================================================================== */
+
+/* Primary button = signature orange→rose gradient (brand book Button.jsx) */
+.ant-btn-primary:not(:disabled):not(.ant-btn-dangerous) {
+  background: var(--if-gradient);
+  border: none;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.2);
+  font-family: var(--font-display);
+  font-weight: 600;
+}
+.ant-btn-primary:not(:disabled):not(.ant-btn-dangerous):hover {
+  background: linear-gradient(135deg, #fb8a3c 0%, #f0234f 100%) !important;
+  box-shadow: 0 6px 18px rgba(239, 68, 68, 0.3) !important;
+  transform: translateY(-1px);
+}
+.ant-btn { transition: transform var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard); }
+
+/* Card — soft resting shadow + signature crimson-glow hover lift */
+.ant-card {
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  transition: transform var(--dur-base) var(--ease-standard),
+              box-shadow var(--dur-base) var(--ease-standard),
+              border-color var(--dur-base) var(--ease-standard);
+}
+.ant-card-hoverable:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-hover);
+  border-color: rgba(239, 68, 68, 0.25);
+}
+
+/* Display font on headings, statistics, segmented & tab labels */
+.ant-statistic-content,
+.ant-tabs-tab-btn,
+.ant-segmented-item-label,
+.ant-card-head-title { font-family: var(--font-display); }
+
+/* Tabs ink bar already crimson via token; thicken the active card tab top */
+.ant-tabs-card > .ant-tabs-nav .ant-tabs-tab-active {
+  border-top: 2px solid var(--accent);
+}
+
+/* Eyebrow utility — uppercase gradient kicker (brand signature) */
+.if-eyebrow {
+  font-family: var(--font-display);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  background: var(--if-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}

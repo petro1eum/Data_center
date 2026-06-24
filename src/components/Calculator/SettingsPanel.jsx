@@ -53,7 +53,7 @@ const KpiCard = ({ title, tooltip, value, prefix, suffix, precision = 0, color, 
             precision={precision}
             prefix={prefix}
             suffix={suffix}
-            valueStyle={{ color: color || '#1890ff', fontSize: 18, fontWeight: 500 }}
+            valueStyle={{ color: color || '#ef4444', fontSize: 18, fontWeight: 500 }}
         />
     </Card>
 );
@@ -110,14 +110,14 @@ const SettingsPanel = ({
     handleFormChange('isAgentModeEnabled', checked);
   };
 
-  const cardHeadStyle = { backgroundColor: '#fafafa', borderBottom: '1px solid #f0f0f0' };
+  const cardHeadStyle = { backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0' };
 
   // Функция для рендеринга опции с иконкой
   const renderOption = (option) => (
     <Space size={4}> 
       <span>{option.data.label}</span>
-      {option.data.recommended && <StarFilled style={{ color: '#faad14', fontSize: '12px' }} />} 
-      {option.data.supports_tool_calls && <ToolOutlined style={{ color: '#1890ff', fontSize: '12px' }} />}
+      {option.data.recommended && <StarFilled style={{ color: '#f97316', fontSize: '12px' }} />} 
+      {option.data.supports_tool_calls && <ToolOutlined style={{ color: '#ef4444', fontSize: '12px' }} />}
     </Space>
   );
 

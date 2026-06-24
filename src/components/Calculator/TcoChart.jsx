@@ -34,7 +34,7 @@ const TcoChart = ({ capex = 0, annualOpex = 0 }) => {
       shape: 'circle',
       style: {
         fill: 'white',
-        stroke: '#5B8FF9',
+        stroke: '#ef4444',
         lineWidth: 2,
       },
     },

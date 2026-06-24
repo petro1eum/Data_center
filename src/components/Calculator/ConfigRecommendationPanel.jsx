@@ -56,7 +56,7 @@ const ConfigSummary = ({ config, currentTco, currentScore, onApply, applyLabel, 
         {config.requiredGpu} GPU / {config.serversRequired} серв.
       </Descriptions.Item>
       <Descriptions.Item label="TCO (5 лет)">
-        <Text strong style={{ color: '#52c41a' }}>{formatCurrency(config.fiveYearTco)}</Text>
+        <Text strong style={{ color: '#047857' }}>{formatCurrency(config.fiveYearTco)}</Text>
         {currentTco > 0 && (config.savingsVsCurrent ?? 0) > 0 && (
           <Text type="secondary"> (экономия ~{formatCurrency(config.savingsVsCurrent)})</Text>
         )}
@@ -105,16 +105,16 @@ const ConfigRecommendationPanel = ({
   <Card
     style={{
       marginBottom: 16,
-      border: '2px solid #1890ff',
+      border: '2px solid #ef4444',
       boxShadow: '0 4px 12px rgba(24, 144, 255, 0.15)',
     }}
     styles={{
-      header: { background: 'linear-gradient(135deg, #e6f4ff 0%, #f6ffed 100%)' },
+      header: { background: 'linear-gradient(135deg, #fff1f2 0%, #ecfdf5 100%)' },
       body: { paddingTop: 16 },
     }}
     title={(
       <Space>
-        <BulbOutlined style={{ color: '#1890ff', fontSize: 18 }} />
+        <BulbOutlined style={{ color: '#ef4444', fontSize: 18 }} />
         <span style={{ fontSize: 16, fontWeight: 600 }}>Подбор конфигурации под вашу нагрузку</span>
       </Space>
     )}
@@ -179,7 +179,7 @@ const ConfigRecommendationPanel = ({
 
     <Spin spinning={isSearchingOptimal && !recommendedConfig} tip="Перебор конфигураций...">
       {recommendedConfig && (
-        <div style={{ marginTop: 16, padding: 16, background: '#fafafa', borderRadius: 8 }}>
+        <div style={{ marginTop: 16, padding: 16, background: '#f8fafc', borderRadius: 8 }}>
           <Text strong style={{ display: 'block', marginBottom: 12, fontSize: 15 }}>
             {recommendedConfig.isCurrentOptimal
               ? 'Текущая конфигурация (оптимальна для выбранного приоритета)'
