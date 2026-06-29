@@ -74,6 +74,18 @@ describe('performFullCalculation integration', () => {
     expect(rAgent.totalTokensPerSecRequired).toBeGreaterThan(rSimple.totalTokensPerSecRequired * 5);
   });
 
+  it('keeps minimumDeployGpu based on minimum KV cache, not production load', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'deepseek-v4-flash',
+      gpuId: 'h100-80gb',
+      userLoadConcurrentUsers: 10_000,
+      userLoadTokensPerRequest: 4_000,
+    });
+    const r = performFullCalculation(cfg);
+    expect(r.productionGpu).toBeGreaterThan(r.minimumDeployGpu);
+    expect(r.minimumDeployGpu).toBe(2);
+  });
+
   it('rating is stable when re-calculated with same hardware', () => {
     const cfg = buildCalculationConfig({ modelId: 'qwen3.6-35b-a3b', gpuId: 'h100-80gb' });
     const first = performFullCalculation(cfg);

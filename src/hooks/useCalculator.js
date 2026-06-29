@@ -44,7 +44,10 @@ const getInitialFormData = () => {
         modelParamsNumBillion: modelPreset?.params ?? 0,
         modelActiveParamsBillion: modelPreset?.activeParams ?? modelPreset?.params ?? 0,
         deployVramGb: modelPreset?.deployVramGb ?? null,
+        deployPrecision: modelPreset?.deployPrecision ?? null,
+        deployVramByPrecision: modelPreset?.deployVramByPrecision ?? null,
         deployGpuCount: modelPreset?.deployGpuCount ?? null,
+        deployGpuCountByPrecision: modelPreset?.deployGpuCountByPrecision ?? null,
         checkpointSizeGb: modelPreset?.checkpointSizeGb ?? null,
         kvCacheFactor: modelPreset?.kvCacheFactor ?? 1,
         modelParamsBitsPrecision: modelPreset?.deployPrecision ?? 16,
@@ -112,7 +115,10 @@ const getInitialFormData = () => {
          serverPricingMode: SERVER_PRESETS[serverId]?.pricingMode ?? 'barebone',
          serverTotalPowerKw: SERVER_PRESETS[serverId]?.totalPowerKw ?? null,
          serverTotalGpuVramGb: SERVER_PRESETS[serverId]?.totalGpuVramGb ?? null,
+         deployPrecision: MODEL_PRESETS[modelId]?.deployPrecision ?? null,
+         deployVramByPrecision: MODEL_PRESETS[modelId]?.deployVramByPrecision ?? null,
          deployGpuCount: MODEL_PRESETS[modelId]?.deployGpuCount ?? null,
+         deployGpuCountByPrecision: MODEL_PRESETS[modelId]?.deployGpuCountByPrecision ?? null,
          checkpointSizeGb: MODEL_PRESETS[modelId]?.checkpointSizeGb ?? null,
          networkCostPerPort: NETWORK_PRESETS[networkId]?.costPerPort,
          storageCostPerGB: STORAGE_PRESETS[storageId]?.costPerGB,
@@ -160,7 +166,10 @@ export const useCalculator = () => {
         modelParamsNumBillion: preset.params,
         modelActiveParamsBillion: preset.activeParams ?? preset.params,
         deployVramGb: preset.deployVramGb ?? null,
+        deployPrecision: preset.deployPrecision ?? null,
+        deployVramByPrecision: preset.deployVramByPrecision ?? null,
         deployGpuCount: preset.deployGpuCount ?? null,
+        deployGpuCountByPrecision: preset.deployGpuCountByPrecision ?? null,
         checkpointSizeGb: preset.checkpointSizeGb ?? null,
         modelParamsBitsPrecision: preset.deployPrecision ?? prev.modelParamsBitsPrecision,
         isMultimodal: preset.isMultimodal ?? false,
@@ -173,7 +182,7 @@ export const useCalculator = () => {
     } else {
         setSelectedModelPreset("");
         setShowModelInfo(false);
-        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelActiveParamsBillion: 0, deployVramGb: null, deployGpuCount: null, checkpointSizeGb: null, isMultimodal: false, multimodalOverheadGb: 0, kvCacheFactor: 1, isAgentModeEnabled: false }));
+        setFormData(prev => ({ ...prev, modelParamsNumBillion: 0, modelActiveParamsBillion: 0, deployVramGb: null, deployPrecision: null, deployVramByPrecision: null, deployGpuCount: null, deployGpuCountByPrecision: null, checkpointSizeGb: null, isMultimodal: false, multimodalOverheadGb: 0, kvCacheFactor: 1, isAgentModeEnabled: false }));
     }
   };
   const applyGpuPreset = (presetKey) => {

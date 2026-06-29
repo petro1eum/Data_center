@@ -3,6 +3,8 @@ import {
   calcModelWeightGb,
   calcMemoryGpuRequirements,
   calcUserLoadMetrics,
+  DEPLOY_FOOTPRINT_TOLERANCE_GB_PER_GPU,
+  getEffectiveDeployVramGb,
 } from './hardwareRequirements.js';
 
 /**
@@ -21,6 +23,7 @@ export const checkModelFitsGpu = (formData) => {
     const kvCacheGb = calcKvCacheGb(formData, loadMetrics.avgContextTokensPerSession);
     const memoryReq = calcMemoryGpuRequirements(formData, kvCacheGb);
     const weightGb = calcModelWeightGb(formData);
+    const effectiveDeployVramGb = getEffectiveDeployVramGb(formData);
     const effectiveParamsBillion = modelActiveParamsBillion ?? modelParamsNumBillion;
     const isMoE = modelActiveParamsBillion && modelActiveParamsBillion < modelParamsNumBillion * 0.9;
 
@@ -43,9 +46,13 @@ export const checkModelFitsGpu = (formData) => {
       };
     }
 
-    if (requiredGbPerGpu > gpuConfigVramGb) {
-      const vramNote = deployVramGb
-        ? `(квантизированный deploy ~${deployVramGb}GB)`
+    const deployToleranceGb = effectiveDeployVramGb && effectiveDeployVramGb > 0
+      ? DEPLOY_FOOTPRINT_TOLERANCE_GB_PER_GPU
+      : 0;
+
+    if (requiredGbPerGpu > gpuConfigVramGb + deployToleranceGb) {
+      const vramNote = effectiveDeployVramGb
+        ? `(квантизированный deploy ~${effectiveDeployVramGb.toFixed(0)}GB)`
         : isMoE
           ? `(${modelParamsNumBillion}B всего / ${effectiveParamsBillion}B active @ ${modelParamsBitsPrecision}-bit, KV ~${kvCacheGb.toFixed(0)}GB)`
           : `(${modelParamsNumBillion}B @ ${modelParamsBitsPrecision}-bit, KV ~${kvCacheGb.toFixed(0)}GB)`;
@@ -90,6 +97,7 @@ export const checkConfigurationWarnings = (formData, results) => {
         productionGpu,
         minimumDeployGpu,
         gpuCountMode,
+        gpuCountForLoad,
     } = results;
     const { networkType, ramType } = formData;
 
@@ -109,8 +117,8 @@ export const checkConfigurationWarnings = (formData, results) => {
         warnings.push(`Режим Min deploy: ${minimumDeployGpu ?? requiredGpu} GPU. Для production-нагрузки потребуется ~${productionGpu} GPU.`);
     }
 
-    if (gpuCountForMemory > gpuCountForThroughput && requiredGpu > 0) {
-        warnings.push(`Количество GPU (${requiredGpu}) ограничено памятью (веса ~${modelWeightGb?.toFixed(0) ?? '?'} GB + KV-cache ~${kvCacheGb?.toFixed(0) ?? '?'} GB), а не throughput. Tensor-parallel: ${gpusPerReplica ?? '?'} GPU/реплика.`);
+    if (gpuCountForMemory > (gpuCountForLoad ?? gpuCountForThroughput) && requiredGpu > 0) {
+        warnings.push(`Количество GPU (${requiredGpu}) ограничено памятью модели (веса ~${modelWeightGb?.toFixed(0) ?? '?'} GB + KV-cache ~${kvCacheGb?.toFixed(0) ?? '?'} GB). Пользовательская нагрузка сама по себе требует ~${gpuCountForLoad ?? gpuCountForThroughput ?? '?'} GPU, но модель должна быть размещена как TP ${gpusPerReplica ?? '?'} GPU/реплика.`);
     }
 
     if (formData.isMultimodal) {

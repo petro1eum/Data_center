@@ -33,4 +33,17 @@ describe('checkModelFitsGpu', () => {
     const r = checkModelFitsGpu(cfg);
     expect(r.hasError).toBe(false);
   });
+
+  it('allows small KV overhead for empirical deploy footprints', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'gpt-oss-120b',
+      gpuId: 'h100-80gb',
+      userLoadConcurrentUsers: 100,
+      isAgentModeEnabled: true,
+      agentRequestPercentage: 5,
+    });
+    const r = checkModelFitsGpu(cfg);
+    expect(r.requiredGbPerGpu).toBeGreaterThan(cfg.gpuConfigVramGb);
+    expect(r.hasError).toBe(false);
+  });
 });

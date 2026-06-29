@@ -227,6 +227,7 @@ const ResultsPanel = ({
     minimumDeployGpu,
     gpuCountMode,
     gpusPerReplica,
+    gpuCountForLoad,
     gpuCountForThroughput,
     gpuCountForMemory,
     modelWeightGb,
@@ -296,6 +297,9 @@ const ResultsPanel = ({
                 >
                   <Text type="secondary">Серверов: </Text><Text strong>{formatNumber(serversRequired)}</Text><br />
                   <Text type="secondary">TP/replica: </Text><Text strong>{gpusPerReplica ?? 1}</Text>
+                  {gpuCountForLoad != null && (
+                    <><br /><Text type="secondary">Load-only: </Text><Text strong>{gpuCountForLoad} GPU</Text></>
+                  )}
                   {gpuCountMode === 'production' && minimumDeployGpu != null && minimumDeployGpu !== requiredGpu && (
                     <><br /><Text type="secondary">Min deploy: </Text><Text strong>{minimumDeployGpu} GPU</Text></>
                   )}
@@ -357,9 +361,9 @@ const ResultsPanel = ({
             style={{ marginBottom: 16 }}
             message={`VRAM: ~${Math.round(modelWeightGb)} GB weights + ~${Number(kvCacheGb).toFixed(1)} GB KV | ${formatNumber(totalTokensPerSecRequired, 0)} tok/s`}
             description={
-              gpuCountForMemory > gpuCountForThroughput
-                ? `GPU ограничены памятью (${gpuCountForMemory}), не throughput (${gpuCountForThroughput}).`
-                : `Throughput требует ${gpuCountForThroughput ?? '?'} GPU, память — ${gpuCountForMemory ?? '?'} GPU.`
+              gpuCountForMemory > (gpuCountForLoad ?? gpuCountForThroughput)
+                ? `GPU ограничены памятью модели (${gpuCountForMemory}), не пользовательской нагрузкой (${gpuCountForLoad ?? gpuCountForThroughput}). TP/replica: ${gpusPerReplica ?? '?'}.`
+                : `Пользовательская нагрузка требует ${gpuCountForLoad ?? gpuCountForThroughput ?? '?'} GPU, память — ${gpuCountForMemory ?? '?'} GPU.`
             }
           />
         )}

@@ -2,8 +2,11 @@ import { describe, it, expect } from 'vitest';
 import {
   calcUserLoadMetrics,
   calcKvCacheGb,
+  calcKvCacheGbMinimum,
   calcMemoryGpuRequirements,
   calcFinalGpuCount,
+  getEffectiveDeployGpuCount,
+  getEffectiveDeployVramGb,
 } from './hardwareRequirements.js';
 import { buildCalculationConfig } from '../test/fixtures.js';
 
@@ -87,6 +90,19 @@ describe('calcKvCacheGb attention factor', () => {
     const asGqa = calcKvCacheGb({ ...cfg, kvCacheFactor: 1 }, load.avgContextTokensPerSession);
     expect(compressed).toBeCloseTo(asGqa * 0.1, 4);
   });
+
+  it('minimum KV cache is based on one non-agent session, not production user count', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'deepseek-v4-flash',
+      userLoadConcurrentUsers: 10_000,
+      userLoadTokensPerRequest: 4_000,
+    });
+    const productionLoad = calcUserLoadMetrics(cfg);
+    const productionKv = calcKvCacheGb(cfg, productionLoad.avgContextTokensPerSession);
+    const minimumKv = calcKvCacheGbMinimum(cfg);
+    expect(productionKv).toBeGreaterThan(100);
+    expect(minimumKv).toBeLessThan(0.1);
+  });
 });
 
 describe('calcMemoryGpuRequirements', () => {
@@ -107,6 +123,44 @@ describe('calcMemoryGpuRequirements', () => {
     const cfg = buildCalculationConfig({ modelId: 'deepseek-v4-flash' });
     const mem = calcMemoryGpuRequirements(cfg, 1);
     expect(mem.weightGb).toBeGreaterThanOrEqual(cfg.deployVramGb);
+  });
+
+  it('uses known deploy footprint without generic training headroom penalty', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'deepseek-v4-flash',
+      gpuId: 'h100-80gb',
+      userLoadConcurrentUsers: 1,
+    });
+    const load = calcUserLoadMetrics(cfg);
+    const kv = calcKvCacheGb(cfg, load.avgContextTokensPerSession);
+    const mem = calcMemoryGpuRequirements(cfg, kv);
+    expect(mem.gpusPerReplica).toBe(2);
+    expect(mem.minGpusForMemory).toBe(2);
+    expect(mem.vramPerGpuRequired).toBeLessThanOrEqual(cfg.gpuConfigVramGb);
+  });
+
+  it('does not turn exact empirical deploy footprints into an extra GPU for tiny KV', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'llama4-scout',
+      gpuId: 'h100-80gb',
+      userLoadConcurrentUsers: 1,
+    });
+    const mem = calcMemoryGpuRequirements(cfg, 0.5);
+    expect(mem.gpusPerReplica).toBe(1);
+    expect(mem.minGpusForMemory).toBe(1);
+  });
+
+  it('scales empirical deploy footprint and GPU floor by selected precision', () => {
+    const cfg = buildCalculationConfig({
+      modelId: 'minimax-m3',
+      gpuId: 'h100-80gb',
+      modelParamsBitsPrecision: 4,
+      userLoadConcurrentUsers: 1,
+    });
+    expect(getEffectiveDeployVramGb(cfg)).toBe(225);
+    expect(getEffectiveDeployGpuCount(cfg)).toBe(3);
+    const mem = calcMemoryGpuRequirements(cfg, 0.5);
+    expect(mem.gpusPerReplica).toBe(3);
   });
 });
 
@@ -135,6 +189,7 @@ describe('calcFinalGpuCount', () => {
       minGpusForMemory: 4,
       gpuCountMode: 'production',
     });
+    expect(tp.gpuCountForLoad).toBe(8);
     expect(tp.gpuCountForThroughput).toBe(8);   // ceil(4000/500)=8, rounded to replicas of 4
     expect(tp.numGpu).toBe(8);
     // Old buggy behavior produced ceil(4000/500)*4 = 32 — guard against regression.
@@ -150,6 +205,7 @@ describe('calcFinalGpuCount', () => {
       minGpusForMemory: 4,
       gpuCountMode: 'production',
     });
+    expect(tp.gpuCountForLoad).toBe(3);
     expect(tp.gpuCountForThroughput).toBe(4);
     expect(tp.numGpu).toBe(4);
   });
@@ -177,5 +233,18 @@ describe('calcFinalGpuCount', () => {
     });
     expect(count.minimumDeployGpu).toBe(8);
     expect(count.numGpu).toBe(8);
+  });
+
+  it('minimum mode never returns fewer GPUs than the memory floor', () => {
+    const count = calcFinalGpuCount({
+      totalTokensPerSecRequired: 100,
+      effectiveTokensPerSecPerGpu: 5000,
+      gpusPerReplica: 16,
+      minGpusForMemory: 16,
+      gpuCountMode: 'minimum',
+      deployGpuCount: 8,
+    });
+    expect(count.minimumDeployGpu).toBe(16);
+    expect(count.numGpu).toBe(16);
   });
 });

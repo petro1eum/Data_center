@@ -9,6 +9,7 @@ const safeDivide = (numerator, denominator) => {
 
 const GPU_VRAM_USABLE_RATIO = 0.82;
 const WEIGHT_OVERHEAD = 1.15;
+export const DEPLOY_FOOTPRINT_TOLERANCE_GB_PER_GPU = 2;
 
 /**
  * Расчёт нагрузки: токены/с, LLM- и tool-вызовы, OpEx на внешние инструменты.
@@ -109,15 +110,62 @@ export const calcKvCacheGb = (formData, avgContextTokensPerSession) => {
  * VRAM под веса модели. MoE: все эксперты в памяти → total params, не active.
  * deployVramGb — известный footprint деплоя (квантизация уже учтена).
  */
+export const getEffectiveDeployVramGb = (formData) => {
+  const {
+    modelParamsBitsPrecision = 16,
+    deployVramGb,
+    deployPrecision,
+    deployVramByPrecision,
+  } = formData;
+
+  const precisionKey = String(modelParamsBitsPrecision);
+  if (deployVramByPrecision?.[precisionKey] > 0) {
+    return deployVramByPrecision[precisionKey];
+  }
+
+  if (deployVramGb && deployVramGb > 0) {
+    const basePrecision = deployPrecision ?? modelParamsBitsPrecision;
+    if (basePrecision > 0 && modelParamsBitsPrecision > 0) {
+      return deployVramGb * (modelParamsBitsPrecision / basePrecision);
+    }
+    return deployVramGb;
+  }
+
+  return null;
+};
+
+export const getEffectiveDeployGpuCount = (formData) => {
+  const {
+    deployGpuCount,
+    deployGpuCountByPrecision,
+    deployPrecision,
+    modelParamsBitsPrecision = 16,
+  } = formData;
+
+  const precisionKey = String(modelParamsBitsPrecision);
+  if (deployGpuCountByPrecision?.[precisionKey] > 0) {
+    return deployGpuCountByPrecision[precisionKey];
+  }
+
+  if (!deployGpuCount || deployGpuCount <= 0) return null;
+
+  const basePrecision = deployPrecision ?? modelParamsBitsPrecision;
+  if (basePrecision > 0 && modelParamsBitsPrecision > 0) {
+    return Math.max(1, Math.ceil(deployGpuCount * (modelParamsBitsPrecision / basePrecision)));
+  }
+
+  return deployGpuCount;
+};
+
 export const calcModelWeightGb = (formData) => {
   const {
     modelParamsNumBillion = 0,
     modelParamsBitsPrecision = 16,
-    deployVramGb,
   } = formData;
 
-  if (deployVramGb && deployVramGb > 0) {
-    return deployVramGb;
+  const effectiveDeployVramGb = getEffectiveDeployVramGb(formData);
+  if (effectiveDeployVramGb && effectiveDeployVramGb > 0) {
+    return effectiveDeployVramGb;
   }
 
   const bytesPerParam = modelParamsBitsPrecision / 8;
@@ -128,7 +176,9 @@ export const calcModelWeightGb = (formData) => {
  * GPU на одну реплику (tensor parallel) и минимум GPU под память.
  */
 export const calcMemoryGpuRequirements = (formData, kvCacheGb = 0) => {
-  const { gpuConfigVramGb = 0, deployVramGb } = formData;
+  const { gpuConfigVramGb = 0 } = formData;
+  const effectiveDeployVramGb = getEffectiveDeployVramGb(formData);
+  const effectiveDeployGpuCount = getEffectiveDeployGpuCount(formData);
 
   if (!gpuConfigVramGb || gpuConfigVramGb <= 0) {
     return {
@@ -146,22 +196,31 @@ export const calcMemoryGpuRequirements = (formData, kvCacheGb = 0) => {
   const { isMultimodal, multimodalOverheadGb = 0, deployVramGb: deployFootprint } = formData;
   const encoderOverhead = isMultimodal && !deployFootprint ? (multimodalOverheadGb || 4) : (multimodalOverheadGb || 0);
   const usableVram = gpuConfigVramGb * GPU_VRAM_USABLE_RATIO;
+  const deployVramPerGpu = effectiveDeployVramGb && effectiveDeployVramGb > 0 ? gpuConfigVramGb : usableVram;
+  const deployReplicaFloor = effectiveDeployGpuCount && effectiveDeployGpuCount > 0 ? effectiveDeployGpuCount : 1;
 
   let gpusPerReplica;
-  if (deployVramGb && deployVramGb > 0) {
-    gpusPerReplica = deployVramGb > gpuConfigVramGb
-      ? Math.ceil(deployVramGb / usableVram)
-      : 1;
+  if (effectiveDeployVramGb && effectiveDeployVramGb > 0) {
+    gpusPerReplica = Math.max(deployReplicaFloor, Math.ceil(effectiveDeployVramGb / deployVramPerGpu));
   } else {
     gpusPerReplica = Math.max(1, Math.ceil(weightGb / usableVram));
   }
 
   const totalVramGb = weightGb + kvCacheGb + encoderOverhead;
-  let minGpusForMemory = Math.max(gpusPerReplica, Math.ceil(totalVramGb / usableVram));
+  const memoryVramPerGpu = effectiveDeployVramGb && effectiveDeployVramGb > 0 ? gpuConfigVramGb : usableVram;
+  const deployToleranceGb = effectiveDeployVramGb && effectiveDeployVramGb > 0
+    ? DEPLOY_FOOTPRINT_TOLERANCE_GB_PER_GPU
+    : 0;
+  const fitsKnownDeployFootprint = (gpuCount) =>
+    totalVramGb <= (gpuCount * memoryVramPerGpu) + (gpuCount * deployToleranceGb);
+  let minGpusForMemory = gpusPerReplica;
+  if (!fitsKnownDeployFootprint(minGpusForMemory)) {
+    minGpusForMemory = Math.max(gpusPerReplica, Math.ceil(totalVramGb / memoryVramPerGpu));
+  }
   minGpusForMemory = Math.ceil(minGpusForMemory / gpusPerReplica) * gpusPerReplica;
 
   const vramPerGpuRequired = minGpusForMemory > 0
-    ? (totalVramGb / minGpusForMemory) * 1.05
+    ? (totalVramGb / minGpusForMemory) * (effectiveDeployVramGb && effectiveDeployVramGb > 0 ? 1.0 : 1.05)
     : 0;
 
   return {
@@ -172,7 +231,7 @@ export const calcMemoryGpuRequirements = (formData, kvCacheGb = 0) => {
     gpusPerReplica,
     minGpusForMemory,
     vramPerGpuRequired,
-    usesDeployVram: !!(deployVramGb && deployVramGb > 0),
+    usesDeployVram: !!(effectiveDeployVramGb && effectiveDeployVramGb > 0),
   };
 };
 
@@ -180,12 +239,13 @@ export const calcMemoryGpuRequirements = (formData, kvCacheGb = 0) => {
  * KV для minimum deploy — 1 concurrent session (floor config).
  */
 export const calcKvCacheGbMinimum = (formData) => {
-  const loadOne = calcUserLoadMetrics({
+  const minimumFormData = {
     ...formData,
     userLoadConcurrentUsers: 1,
     isAgentModeEnabled: false,
-  });
-  return calcKvCacheGb(formData, loadOne.avgContextTokensPerSession);
+  };
+  const loadOne = calcUserLoadMetrics(minimumFormData);
+  return calcKvCacheGb(minimumFormData, loadOne.avgContextTokensPerSession);
 };
 
 /**
@@ -196,6 +256,8 @@ export const calcFinalGpuCount = ({
   effectiveTokensPerSecPerGpu,
   gpusPerReplica,
   minGpusForMemory,
+  minimumGpusPerReplica,
+  minimumGpusForMemory,
   gpuCountMode = 'production',
   deployGpuCount,
   serverPricingMode = 'barebone',
@@ -209,12 +271,12 @@ export const calcFinalGpuCount = ({
   // напрямую и округляем ВВЕРХ до целых реплик. Старый код умножал число реплик
   // на размер реплики и завышал throughput-ветку в gpusPerReplica раз.
   const tpsPerGpu = effectiveTokensPerSecPerGpu;
-  const gpusForThroughputRaw = Math.ceil(
+  const gpuCountForLoad = Math.ceil(
     safeDivide(totalTokensPerSecRequired, tpsPerGpu),
   );
   const gpuCountForThroughput = gpusPerReplica > 1
-    ? Math.max(gpusPerReplica, Math.ceil(gpusForThroughputRaw / gpusPerReplica) * gpusPerReplica)
-    : gpusForThroughputRaw;
+    ? Math.max(gpusPerReplica, Math.ceil(gpuCountForLoad / gpusPerReplica) * gpusPerReplica)
+    : gpuCountForLoad;
   const replicasForThroughput = gpusPerReplica > 0
     ? gpuCountForThroughput / gpusPerReplica
     : gpuCountForThroughput;
@@ -225,7 +287,9 @@ export const calcFinalGpuCount = ({
     productionGpu = Math.ceil(productionGpu / gpusPerReplica) * gpusPerReplica;
   }
 
-  let minimumGpu = deployGpuCount ?? gpusPerReplica;
+  const minimumMemoryFloor = minimumGpusForMemory ?? minGpusForMemory;
+  const minimumReplicaFloor = minimumGpusPerReplica ?? gpusPerReplica;
+  let minimumGpu = Math.max(deployGpuCount ?? minimumReplicaFloor, minimumReplicaFloor, minimumMemoryFloor);
 
   if (serverPricingMode === 'rack') {
     const rackVram = totalGpuVramGb ?? serverGpuCount * 80;
@@ -243,6 +307,7 @@ export const calcFinalGpuCount = ({
     numGpu,
     productionGpu,
     minimumDeployGpu: minimumGpu,
+    gpuCountForLoad,
     gpuCountForThroughput,
     replicasForThroughput,
     tpsPerReplica,

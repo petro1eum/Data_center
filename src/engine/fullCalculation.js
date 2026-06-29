@@ -24,6 +24,7 @@ import {
   calcKvCacheGbMinimum,
   calcMemoryGpuRequirements,
   calcFinalGpuCount,
+  getEffectiveDeployGpuCount,
 } from '../utils/hardwareRequirements';
 import { checkModelFitsGpu } from '../utils/validationUtils';
 import { calculateConfigurationRating } from './configRating';
@@ -105,14 +106,20 @@ export const performFullCalculation = (configData) => {
     configData,
     gpuCountMode === 'minimum' ? kvCacheGbMinimum : kvCacheGb,
   );
+  const minimumMemoryReq = gpuCountMode === 'minimum'
+    ? memoryReq
+    : calcMemoryGpuRequirements(configData, kvCacheGbMinimum);
+  const effectiveDeployGpuCount = getEffectiveDeployGpuCount(configData);
   const serverPreset = SERVER_PRESETS[serverId] ?? {};
   const gpuCountResult = calcFinalGpuCount({
     totalTokensPerSecRequired,
     effectiveTokensPerSecPerGpu: tpsForGpuSizing,
     gpusPerReplica: memoryReq.gpusPerReplica,
     minGpusForMemory: memoryReq.minGpusForMemory,
+    minimumGpusPerReplica: minimumMemoryReq.gpusPerReplica,
+    minimumGpusForMemory: minimumMemoryReq.minGpusForMemory,
     gpuCountMode,
-    deployGpuCount: configData.deployGpuCount,
+    deployGpuCount: effectiveDeployGpuCount,
     serverPricingMode: configData.serverPricingMode ?? serverPreset.pricingMode ?? 'barebone',
     serverGpuCount: configData.serverConfigNumGpuPerServer ?? serverPreset.gpuCount ?? 8,
     totalGpuVramGb: configData.serverTotalGpuVramGb ?? serverPreset.totalGpuVramGb,
@@ -243,6 +250,7 @@ export const performFullCalculation = (configData) => {
     cloudProviderId,
     totalTokensPerSecRequired,
     gpusPerReplica: memoryReq.gpusPerReplica,
+    gpuCountForLoad: gpuCountResult.gpuCountForLoad,
     gpuCountForThroughput: gpuCountResult.gpuCountForThroughput,
     gpuCountForMemory: memoryReq.minGpusForMemory,
     modelWeightGb: memoryReq.weightGb,

@@ -133,6 +133,10 @@ export const searchAllHardwareConfigs = (currentConfig, performFullCalculation) 
         modelParamsNumBillion: currentConfig.modelParamsNumBillion,
         modelActiveParamsBillion: currentConfig.modelActiveParamsBillion,
         deployVramGb: currentConfig.deployVramGb,
+        deployPrecision: currentConfig.deployPrecision,
+        deployVramByPrecision: currentConfig.deployVramByPrecision,
+        deployGpuCount: currentConfig.deployGpuCount,
+        deployGpuCountByPrecision: currentConfig.deployGpuCountByPrecision,
         modelParamsBitsPrecision: precision,
         gpuConfigVramGb: gpuPreset.vram,
       });

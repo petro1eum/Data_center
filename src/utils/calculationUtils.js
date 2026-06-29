@@ -1,5 +1,6 @@
 import { PERFORMANCE_MATRIX, GPU_RELATIVE_PERFORMANCE } from '../data/performanceData';
 import { getCloudApiThroughput } from '../data/openRouterBenchmarks';
+import { getEffectiveDeployVramGb } from './hardwareRequirements';
 
 /**
    * CapEx: barebone (GPU×N + chassis×M) | turnkey (node×M) | rack (rack×M, GPU включены)
@@ -102,8 +103,9 @@ import { getCloudApiThroughput } from '../data/openRouterBenchmarks';
    */
   export const calcStorageRequirements = (formData, serversRequired) => {
     const { modelParamsNumBillion, modelParamsBitsPrecision, storageCostPerGB, checkpointSizeGb, deployVramGb } = formData;
+    const effectiveDeployVramGb = getEffectiveDeployVramGb(formData);
     const modelSizeGB = checkpointSizeGb
-      ?? (deployVramGb && deployVramGb > 0 ? deployVramGb * 1.05 : null)
+      ?? (effectiveDeployVramGb && effectiveDeployVramGb > 0 ? effectiveDeployVramGb * 1.05 : null)
       ?? safeDivide((modelParamsNumBillion ?? 0) * (modelParamsBitsPrecision ?? 0), 8);
     const recommendedStoragePerModel = modelSizeGB * 3;
     const minStoragePerServer = 2000; 
